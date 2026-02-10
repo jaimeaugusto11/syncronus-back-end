@@ -35,6 +35,9 @@ public class SupplierService {
     @Autowired
     private SupplierDocumentRepository supplierDocumentRepository;
 
+    @Autowired
+    private jakarta.persistence.EntityManager entityManager;
+
     public List<Supplier> getAllSuppliers() {
         UUID tenantId = TenantContext.getCurrentTenant();
         return supplierRepository.findByTenantId(tenantId);
@@ -158,6 +161,8 @@ public class SupplierService {
         }
 
         supplierRepository.save(supplier);
+        entityManager.flush(); // Force persistence of changes
+        entityManager.clear(); // Clear persistence context so next fetch uses EntityGraph
     }
 
     @Transactional
