@@ -1,0 +1,56 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+
+### VS Code ###
+.vscode/
+
+### Custom logs ###
+*.log
+*.txt
+build_attempt.log
+error_v4.log
+error_v5.log
+compile_full.log
+backend_final_v3.log
+# (Adding other logs found in list_dir)
+add_removed_status.sql
+add_workflow_tenant_id.sql
+fix_admin_role.sql
+manual_data_load.sql
+manual_data_load_mariadb.sql
+query.sql
+schema_check.txt
+db_columns.txt
+error_context.txt
+error_context_v2.txt
+error_full.txt
+final_compile_output.txt
+clean_compile_output.txt
+compile_output.txt
+compile_results.txt
+compile_test.ps1
+startup_log.txt
+verbose_build.log
