@@ -24,6 +24,7 @@ public class SupplierUser {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "supplier_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Supplier supplier;
 
     @Column(nullable = false)

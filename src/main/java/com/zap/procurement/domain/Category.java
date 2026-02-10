@@ -23,6 +23,7 @@ public class Category extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id")
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Category parent;
 
     @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL)
