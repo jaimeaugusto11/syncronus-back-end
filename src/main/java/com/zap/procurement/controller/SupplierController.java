@@ -49,11 +49,11 @@ public class SupplierController {
     }
 
     @PostMapping("/{id}/categories")
-    public ResponseEntity<?> addCategories(
+    public ResponseEntity<Supplier> addCategories(
             @PathVariable UUID id,
             @RequestBody List<com.zap.procurement.dto.CategoryAssignmentDTO> categories) {
-        supplierService.addCategoriesToSupplier(id, categories);
-        return ResponseEntity.ok().build();
+        Supplier updated = supplierService.addCategoriesToSupplier(id, categories);
+        return ResponseEntity.ok(updated);
     }
 
     @DeleteMapping("/{id}/categories/{categoryId}")

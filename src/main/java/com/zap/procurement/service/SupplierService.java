@@ -144,7 +144,7 @@ public class SupplierService {
     }
 
     @Transactional
-    public void addCategoriesToSupplier(UUID supplierId,
+    public Supplier addCategoriesToSupplier(UUID supplierId,
             List<com.zap.procurement.dto.CategoryAssignmentDTO> categories) {
         Supplier supplier = supplierRepository.findById(supplierId)
                 .orElseThrow(() -> new RuntimeException("Supplier not found"));
@@ -161,8 +161,11 @@ public class SupplierService {
         }
 
         supplierRepository.save(supplier);
-        entityManager.flush(); // Force persistence of changes
-        entityManager.clear(); // Clear persistence context so next fetch uses EntityGraph
+        supplierRepository.flush();
+
+        // Reload with EntityGraph to ensure categories are loaded
+        return supplierRepository.findById(supplierId)
+                .orElseThrow(() -> new RuntimeException("Supplier not found after save"));
     }
 
     @Transactional
