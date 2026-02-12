@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/integrations")
 @CrossOrigin(origins = "*")
+@org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
 public class IntegrationController {
 
     @Autowired
@@ -28,7 +29,7 @@ public class IntegrationController {
     }
 
     @PostMapping("/batch")
-    public ResponseEntity<List<SystemConfig>> saveBatch(@RequestBody List<SystemConfigDTO> dtos) {
+    public ResponseEntity<List<SystemConfig>> saveBatch(@RequestBody List<com.zap.procurement.dto.ConfigDTO> dtos) {
         UUID tenantId = TenantContext.getCurrentTenant();
 
         List<SystemConfig> saved = dtos.stream().map(dto -> {
@@ -48,36 +49,5 @@ public class IntegrationController {
         }).collect(Collectors.toList());
 
         return ResponseEntity.ok(saved);
-    }
-
-    // Simple DTO for request body to avoid exposing entity ID if needed
-    public static class SystemConfigDTO {
-        private String key;
-        private String value;
-        private String description;
-
-        public String getKey() {
-            return key;
-        }
-
-        public void setKey(String key) {
-            this.key = key;
-        }
-
-        public String getValue() {
-            return value;
-        }
-
-        public void setValue(String value) {
-            this.value = value;
-        }
-
-        public String getDescription() {
-            return description;
-        }
-
-        public void setDescription(String description) {
-            this.description = description;
-        }
     }
 }

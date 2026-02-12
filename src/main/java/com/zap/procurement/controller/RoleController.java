@@ -26,22 +26,38 @@ public class RoleController {
     private final AuditLogService auditLogService;
 
     @GetMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_USERS') or hasAuthority('ADMIN_ACCESS')")
     public ResponseEntity<List<Role>> getAllRoles() {
         UUID tenantId = TenantContext.getCurrentTenant();
         return ResponseEntity.ok(roleRepository.findByTenantId(tenantId));
     }
 
     @GetMapping("/permissions")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_USERS')")
     public ResponseEntity<List<Permission>> getAllPermissions() {
         return ResponseEntity.ok(permissionRepository.findAll());
     }
 
     @PostMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_USERS')")
     public ResponseEntity<Role> createRole(@RequestBody RoleDTO dto) {
         UUID tenantId = TenantContext.getCurrentTenant();
 
         Role role = new Role();
         role.setName(dto.getName());
+
+        // Generate slug from name
+        String baseSlug = dto.getName().toLowerCase()
+                .replaceAll("[^a-z0-9\\s-]", "")
+                .replaceAll("\\s+", "-");
+
+        String slug = baseSlug;
+        int counter = 1;
+        while (roleRepository.existsBySlug(slug)) {
+            slug = baseSlug + "-" + counter++;
+        }
+        role.setSlug(slug);
+
         role.setDescription(dto.getDescription());
         role.setTenantId(tenantId);
 
@@ -59,6 +75,7 @@ public class RoleController {
     }
 
     @PutMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_USERS')")
     public ResponseEntity<Role> updateRole(@PathVariable UUID id, @RequestBody RoleDTO dto) {
         UUID tenantId = TenantContext.getCurrentTenant();
         Role role = roleRepository.findById(id)
@@ -73,7 +90,22 @@ public class RoleController {
         }
 
         String oldValue = "Name: " + role.getName() + ", Description: " + role.getDescription();
-        role.setName(dto.getName());
+
+        if (!role.getName().equals(dto.getName())) {
+            role.setName(dto.getName());
+            // Update slug if name changes
+            String baseSlug = dto.getName().toLowerCase()
+                    .replaceAll("[^a-z0-9\\s-]", "")
+                    .replaceAll("\\s+", "-");
+
+            String slug = baseSlug;
+            int counter = 1;
+            while (roleRepository.existsBySlug(slug) && !slug.equals(role.getSlug())) {
+                slug = baseSlug + "-" + counter++;
+            }
+            role.setSlug(slug);
+        }
+
         role.setDescription(dto.getDescription());
 
         if (dto.getPermissionIds() != null) {
@@ -91,6 +123,7 @@ public class RoleController {
     }
 
     @DeleteMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_USERS')")
     public ResponseEntity<Void> deleteRole(@PathVariable UUID id) {
         UUID tenantId = TenantContext.getCurrentTenant();
         Role role = roleRepository.findById(id)

@@ -15,6 +15,7 @@ import java.util.UUID;
 @RequestMapping("/email-templates")
 @CrossOrigin(origins = "*")
 @RequiredArgsConstructor
+@org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
 public class EmailTemplateController {
 
     private final EmailTemplateRepository emailTemplateRepository;

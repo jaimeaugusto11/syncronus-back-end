@@ -26,6 +26,7 @@ public class RFQController {
     private RFQRepository rfqRepository;
 
     @GetMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_RFQS')")
     public ResponseEntity<List<RFQ>> getAllRFQs() {
         UUID tenantId = TenantContext.getCurrentTenant();
         List<RFQ> rfqs = rfqService.getRFQsByTenant(tenantId);
@@ -33,6 +34,7 @@ public class RFQController {
     }
 
     @GetMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_RFQS')")
     public ResponseEntity<RFQ> getRFQ(@PathVariable UUID id) {
         return rfqRepository.findById(id)
                 .map(ResponseEntity::ok)
@@ -40,6 +42,7 @@ public class RFQController {
     }
 
     @PostMapping("/from-requisition")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
     public ResponseEntity<RFQ> createFromRequisition(
             @RequestParam UUID requisitionId,
             @RequestParam RFQ.RFQType type,
@@ -49,19 +52,38 @@ public class RFQController {
         return ResponseEntity.ok(rfq);
     }
 
+    @PostMapping("/from-items")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
+    public ResponseEntity<RFQ> createFromItems(@RequestBody Map<String, Object> request) {
+        UUID categoryId = UUID.fromString(request.get("categoryId").toString());
+        @SuppressWarnings("unchecked")
+        List<String> itemIdsStrings = (List<String>) request.get("itemIds");
+        List<UUID> itemIds = itemIdsStrings.stream().map(UUID::fromString).toList();
+        RFQ.RFQType type = RFQ.RFQType.valueOf(request.get("type").toString());
+        RFQ.ProcessType processType = request.containsKey("processType")
+                ? RFQ.ProcessType.valueOf(request.get("processType").toString())
+                : RFQ.ProcessType.RFQ;
+
+        RFQ rfq = rfqService.createRFQForCategory(categoryId, itemIds, type, processType);
+        return ResponseEntity.ok(rfq);
+    }
+
     @PostMapping("/{id}/publish")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
     public ResponseEntity<RFQ> publishRFQ(@PathVariable UUID id) {
         RFQ rfq = rfqService.publishRFQ(id);
         return ResponseEntity.ok(rfq);
     }
 
     @GetMapping("/{id}/proposals")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_PROPOSALS')")
     public ResponseEntity<List<SupplierProposal>> getProposals(@PathVariable UUID id) {
         List<SupplierProposal> proposals = rfqService.getProposalsByRFQ(id);
         return ResponseEntity.ok(proposals);
     }
 
     @GetMapping("/{id}/invited-suppliers")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_RFQS')")
     public ResponseEntity<List<RFQSupplier>> getInvitedSuppliers(@PathVariable UUID id) {
         List<RFQSupplier> invited = rfqService.getInvitedSuppliers(id);
         return ResponseEntity.ok(invited);
@@ -69,11 +91,17 @@ public class RFQController {
 
     @PostMapping("/proposals")
     public ResponseEntity<SupplierProposal> submitProposal(@RequestBody SupplierProposal proposal) {
+        // This endpoint might be used by suppliers. If they are authenticated users
+        // with a specific role,
+        // we could restricting it. For now, authenticated is enough, or maybe a
+        // SUPPLIER permission.
+        // Assuming suppliers are users.
         SupplierProposal submitted = rfqService.submitProposal(proposal);
         return ResponseEntity.ok(submitted);
     }
 
     @PostMapping("/proposals/{id}/evaluate")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
     public ResponseEntity<?> evaluateProposal(
             @PathVariable UUID id,
             @RequestBody Map<String, Object> evaluation) {
@@ -85,6 +113,7 @@ public class RFQController {
     }
 
     @PostMapping("/comparisons")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
     public ResponseEntity<Comparison> createComparison(@RequestBody Map<String, Object> request) {
         // Parse UUIDs from request
         UUID rfqId = UUID.fromString(request.get("rfqId").toString());
@@ -104,6 +133,7 @@ public class RFQController {
     }
 
     @PostMapping("/comparisons/{id}/select-winner")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
     public ResponseEntity<Comparison> selectWinner(
             @PathVariable UUID id,
             @RequestBody Map<String, Object> request) {
@@ -115,6 +145,7 @@ public class RFQController {
     }
 
     @PostMapping("/{id}/invite-supplier")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
     public ResponseEntity<RFQSupplier> inviteSupplier(
             @PathVariable UUID id,
             @RequestParam UUID supplierId) {
@@ -123,6 +154,7 @@ public class RFQController {
     }
 
     @DeleteMapping("/{id}/remove-supplier")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
     public ResponseEntity<?> removeSupplier(
             @PathVariable UUID id,
             @RequestParam UUID supplierId) {
@@ -132,11 +164,13 @@ public class RFQController {
 
     @GetMapping("/supplier/{supplierId}")
     public ResponseEntity<List<RFQSupplier>> getInvitedRFQsForSupplier(@PathVariable UUID supplierId) {
+        // Likely purely for suppliers
         List<RFQSupplier> invited = rfqService.getInvitedRFQs(supplierId);
         return ResponseEntity.ok(invited);
     }
 
     @GetMapping("/{id}/comparative-map")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_RFQS')")
     public ResponseEntity<ProposalComparisonDTO> getComparativeMap(@PathVariable UUID id) {
         ProposalComparisonDTO comparison = rfqService.getComparativeMap(id);
         return ResponseEntity.ok(comparison);

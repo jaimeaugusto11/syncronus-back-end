@@ -17,9 +17,14 @@ public class RFQ extends BaseEntity {
     @Column(nullable = false, unique = true)
     private String code;
 
+    @Deprecated
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "requisition_id")
     private Requisition requisition;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
+    private Category category;
 
     private String title;
 

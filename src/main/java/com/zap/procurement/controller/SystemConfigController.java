@@ -15,6 +15,7 @@ import java.util.UUID;
 @RequestMapping("/configs")
 @CrossOrigin(origins = "*")
 @RequiredArgsConstructor
+@org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
 public class SystemConfigController {
 
     private final SystemConfigRepository systemConfigRepository;
@@ -31,7 +32,7 @@ public class SystemConfigController {
     }
 
     @PostMapping
-    public ResponseEntity<SystemConfig> saveConfig(@RequestBody ConfigDTO dto) {
+    public ResponseEntity<SystemConfig> saveConfig(@RequestBody com.zap.procurement.dto.ConfigDTO dto) {
         UUID tenantId = TenantContext.getCurrentTenant();
 
         SystemConfig config = systemConfigRepository.findByTenantIdAndKey(tenantId, dto.getKey())
@@ -52,9 +53,9 @@ public class SystemConfigController {
     }
 
     @PostMapping("/batch")
-    public ResponseEntity<List<SystemConfig>> saveConfigs(@RequestBody List<ConfigDTO> dtos) {
+    public ResponseEntity<List<SystemConfig>> saveConfigs(@RequestBody List<com.zap.procurement.dto.ConfigDTO> dtos) {
         UUID tenantId = TenantContext.getCurrentTenant();
-        for (ConfigDTO dto : dtos) {
+        for (com.zap.procurement.dto.ConfigDTO dto : dtos) {
             SystemConfig config = systemConfigRepository.findByTenantIdAndKey(tenantId, dto.getKey())
                     .orElse(new SystemConfig());
 
@@ -71,45 +72,5 @@ public class SystemConfigController {
                     oldValue, saved.getValue());
         }
         return ResponseEntity.ok(systemConfigRepository.findByTenantId(tenantId));
-    }
-
-    public static class ConfigDTO {
-        private String key;
-        private String value;
-        private String group;
-        private String description;
-
-        // Getters and Setters
-        public String getKey() {
-            return key;
-        }
-
-        public void setKey(String key) {
-            this.key = key;
-        }
-
-        public String getValue() {
-            return value;
-        }
-
-        public void setValue(String value) {
-            this.value = value;
-        }
-
-        public String getGroup() {
-            return group;
-        }
-
-        public void setGroup(String group) {
-            this.group = group;
-        }
-
-        public String getDescription() {
-            return description;
-        }
-
-        public void setDescription(String description) {
-            this.description = description;
-        }
     }
 }

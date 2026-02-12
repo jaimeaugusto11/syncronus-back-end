@@ -44,6 +44,7 @@ public class RequisitionController {
     private SupplierRepository supplierRepository;
 
     @GetMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_REQUISITIONS')")
     public ResponseEntity<List<RequisitionDTO>> getAllRequisitions() {
         UUID tenantId = TenantContext.getCurrentTenant();
         System.out.println("[RequisitionController] Getting all requisitions for tenant: " + tenantId);
@@ -60,12 +61,14 @@ public class RequisitionController {
     }
 
     @GetMapping("/my")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_REQUISITIONS')")
     public ResponseEntity<List<RequisitionDTO>> getMyRequisitions(@RequestParam UUID userId) {
         List<Requisition> requisitions = requisitionService.getMyRequisitions(userId);
         return ResponseEntity.ok(requisitions.stream().map(this::toDTO).collect(Collectors.toList()));
     }
 
     @GetMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_REQUISITIONS')")
     public ResponseEntity<RequisitionDTO> getRequisition(@PathVariable UUID id) {
         return requisitionRepository.findById(id)
                 .map(req -> ResponseEntity.ok(this.toDTO(req)))
@@ -73,6 +76,7 @@ public class RequisitionController {
     }
 
     @PostMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('CREATE_REQUISITION')")
     public ResponseEntity<RequisitionDTO> createRequisition(@RequestBody RequisitionDTO dto) {
         Requisition requisition = new Requisition();
 
@@ -135,6 +139,7 @@ public class RequisitionController {
     }
 
     @PutMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('CREATE_REQUISITION')")
     public ResponseEntity<?> updateRequisition(@PathVariable UUID id, @RequestBody RequisitionDTO dto) {
         return requisitionRepository.findById(id)
                 .map(requisition -> {
@@ -197,6 +202,7 @@ public class RequisitionController {
     }
 
     @DeleteMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('CREATE_REQUISITION')")
     public ResponseEntity<?> deleteRequisition(@PathVariable UUID id) {
         return requisitionRepository.findById(id)
                 .map(requisition -> {
@@ -212,18 +218,21 @@ public class RequisitionController {
     }
 
     @PostMapping("/{id}/submit")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('CREATE_REQUISITION')")
     public ResponseEntity<RequisitionDTO> submitForApproval(@PathVariable UUID id) {
         Requisition requisition = requisitionService.submitForApproval(id);
         return ResponseEntity.ok(toDTO(requisition));
     }
 
     @GetMapping("/approvals/pending")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('APPROVE_REQUISITION')")
     public ResponseEntity<List<PendingApprovalDTO>> getPendingApprovals(@RequestParam UUID userId) {
         List<RequisitionApproval> approvals = requisitionService.getPendingApprovals(userId);
         return ResponseEntity.ok(approvals.stream().map(this::toPendingApprovalDTO).collect(Collectors.toList()));
     }
 
     @PostMapping("/approvals/action")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('APPROVE_REQUISITION')")
     public ResponseEntity<?> processApproval(@RequestBody ApprovalActionDTO actionDTO) {
         requisitionService.processApproval(
                 actionDTO.getApprovalId(),
@@ -234,14 +243,30 @@ public class RequisitionController {
     }
 
     @GetMapping("/{id}/approvals")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_REQUISITIONS')")
     public ResponseEntity<List<ApprovalDTO>> getRequisitionApprovals(@PathVariable UUID id) {
         List<RequisitionApproval> approvals = requisitionService.getApprovalsByRequisition(id);
         return ResponseEntity.ok(approvals.stream().map(this::toApprovalDTO).collect(Collectors.toList()));
     }
 
     @GetMapping("/{id}/purchase-orders")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_REQUISITIONS') or hasAuthority('VIEW_POS')")
     public ResponseEntity<List<com.zap.procurement.dto.PurchaseOrderSummaryDTO>> getLinkedPOs(@PathVariable UUID id) {
         return ResponseEntity.ok(requisitionService.getPurchaseOrdersForRequisition(id));
+    }
+
+    @GetMapping("/items/approved")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
+    public ResponseEntity<List<RequisitionItemDTO>> getApprovedItems() {
+        List<RequisitionItem> items = requisitionService.getApprovedItems();
+        return ResponseEntity.ok(items.stream().map(this::toItemDTO).collect(Collectors.toList()));
+    }
+
+    @GetMapping("/items/approved-by-category")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
+    public ResponseEntity<List<RequisitionItemDTO>> getApprovedItemsByCategory(@RequestParam UUID categoryId) {
+        List<RequisitionItem> items = requisitionService.getApprovedItemsByCategory(categoryId);
+        return ResponseEntity.ok(items.stream().map(this::toItemDTO).collect(Collectors.toList()));
     }
 
     private RequisitionDTO toDTO(Requisition req) {

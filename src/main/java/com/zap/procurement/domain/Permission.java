@@ -3,13 +3,16 @@ package com.zap.procurement.domain;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "permissions")
+@Table(name = "permissions", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_permissions_name_tenant", columnNames = { "name", "tenant_id" }),
+        @UniqueConstraint(name = "uk_permissions_slug_tenant", columnNames = { "slug", "tenant_id" })
+})
 public class Permission extends BaseEntity {
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String name;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String slug;
 
     private String description;

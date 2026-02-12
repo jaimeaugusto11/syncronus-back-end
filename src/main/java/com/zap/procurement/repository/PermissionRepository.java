@@ -12,5 +12,11 @@ import java.util.UUID;
 public interface PermissionRepository extends JpaRepository<Permission, UUID> {
     Optional<Permission> findBySlug(String slug);
 
+    Optional<Permission> findBySlugAndTenantId(String slug, UUID tenantId);
+
+    java.util.List<Permission> findByTenantId(UUID tenantId);
+
+    Optional<Permission> findByName(String name);
+
     List<Permission> findByGroup(String group);
 }

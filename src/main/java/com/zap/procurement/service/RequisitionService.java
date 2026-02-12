@@ -108,47 +108,78 @@ public class RequisitionService {
     }
 
     private void createDefaultApprovalWorkflow(Requisition requisition) {
+        UUID tenantId = requisition.getTenantId();
         Department dept = requisition.getDepartment();
         int level = 1;
 
         // 1. All flows start with Department Head
         if (dept != null && dept.getHead() != null) {
-            createApproval(requisition, dept.getHead(), level++);
+            User head = dept.getHead();
+            // If requester is the head, they shouldn't approve their own request
+            if (head.getId().equals(requisition.getRequester().getId())) {
+                // Try parent department head
+                if (dept.getParent() != null && dept.getParent().getHead() != null) {
+                    createApproval(requisition, dept.getParent().getHead(), level++);
+                } else {
+                    // Skip this level if no alternative head found
+                    System.out.println(
+                            "[RequisitionService] Requester is Dept Head and no parent head found. Skipping level 1.");
+                }
+            } else {
+                createApproval(requisition, head, level++);
+            }
         }
 
         // 2. Extraordinary Flow: Needs General Director
         if (requisition.isExtraordinary()) {
-            User generalDirector = userRepository.findAll().stream()
-                    .filter(u -> u.getRole() != null && "ADMIN_GERAL".equalsIgnoreCase(u.getRole().getName()))
+            // Find a user with DIRETOR_GERAL or ADMIN_GERAL role in THIS tenant
+            User generalDirector = userRepository.findUsersByRoleNameAndTenantId("DIRETOR_GERAL", tenantId)
+                    .stream()
                     .findFirst()
-                    .orElse(null);
+                    .orElse(userRepository.findUsersByRoleNameAndTenantId("ADMIN_GERAL", tenantId)
+                            .stream()
+                            .findFirst()
+                            .orElse(userRepository.findAll().stream()
+                                    .filter(u -> u.getRole() != null
+                                            && ("DIRETOR_GERAL".equalsIgnoreCase(u.getRole().getName())
+                                                    || "ADMIN_GERAL".equalsIgnoreCase(u.getRole().getName())))
+                                    .findFirst()
+                                    .orElse(null)));
 
             if (generalDirector != null) {
+                // Extraordinary requisitions need the DG after the Dept Head
                 createApproval(requisition, generalDirector, level++);
             }
         }
 
-        // 3. Final Step: Procurement Managers
-        List<User> procurementManagers = userRepository.findAll().stream()
-                .filter(u -> u.getRole() != null && "GESTOR_PROCUREMENT".equalsIgnoreCase(u.getRole().getName()))
-                .toList();
+        // 3. Final Step: Prior logic added Procurement Managers here.
+        // REQ CHANGE: Procurement Managers should NOT be approvers.
+        // Once business approval (Dept Head / Director) is done, it goes to APPROVED
+        // state
+        // and becomes available for Sourcing.
 
-        // Use a single level for all procurement managers (any one can approve)
-        for (User manager : procurementManagers) {
-            createApproval(requisition, manager, level);
-        }
+        // So we remove the code that added GESTOR_PROCUREMENT as approvers.
     }
 
     private void createConfiguredApprovalWorkflow(Requisition requisition, WorkflowTemplate workflow) {
         int level = 1;
         for (WorkflowStep step : workflow.getSteps()) {
+            boolean levelCreated = false;
             for (WorkflowApprover approver : step.getApprovers()) {
                 User user = resolveApprover(approver, requisition);
                 if (user != null) {
                     createApproval(requisition, user, level);
+                    levelCreated = true;
                 }
             }
-            level++;
+            if (levelCreated) {
+                level++;
+            }
+        }
+
+        // If no levels were created via template, fallback to default
+        if (level == 1) {
+            createDefaultApprovalWorkflow(requisition);
         }
     }
 
@@ -157,8 +188,18 @@ public class RequisitionService {
             return approver.getUser();
         }
         Department dept = requisition.getDepartment();
-        if (approver.getIsDepartmentHead() != null && approver.getIsDepartmentHead()) {
-            return dept.getHead();
+        if (approver.getIsDepartmentHead() != null && approver.getIsDepartmentHead() && dept != null) {
+            User head = dept.getHead();
+
+            // If requester is the head, they shouldn't approve their own request
+            if (head != null && head.getId().equals(requisition.getRequester().getId())) {
+                // Try parent department head
+                if (dept.getParent() != null) {
+                    return dept.getParent().getHead();
+                }
+                return null; // Skip if no parent dept
+            }
+            return head;
         }
         return null;
     }
@@ -245,23 +286,60 @@ public class RequisitionService {
                 .max()
                 .orElse(0);
 
+        int currentActiveLevel = 1;
         boolean allLevelsCompleted = true;
+
         for (int l = 1; l <= maxLevel; l++) {
             final int level = l;
-            boolean levelApproved = allApprovals.stream()
+            List<RequisitionApproval> levelApprovals = allApprovals.stream()
                     .filter(a -> a.getLevel() == level)
-                    .anyMatch(a -> a.getStatus() == RequisitionApproval.ApprovalStatus.APPROVED);
+                    .toList();
+
+            boolean levelApproved = levelApprovals.stream()
+                    .anyMatch(a -> a.getStatus() == RequisitionApproval.ApprovalStatus.APPROVED
+                            || a.getStatus() == RequisitionApproval.ApprovalStatus.SKIPPED);
 
             if (!levelApproved) {
+                // Optimization: If the current user just approved level - 1, and is also in
+                // level, auto-approve
+                UUID currentUserId = TenantContext.getCurrentUser();
+                if (currentUserId != null) {
+                    for (RequisitionApproval current : levelApprovals) {
+                        if (current.getStatus() == RequisitionApproval.ApprovalStatus.PENDING &&
+                                current.getApprover().getId().equals(currentUserId)) {
+
+                            // Check if they were the ones who approved the previous level (or any level
+                            // before)
+                            // Actually, just being in the next level is enough if we want to streamline
+                            current.setStatus(RequisitionApproval.ApprovalStatus.APPROVED);
+                            current.setActionDate(LocalDateTime.now());
+                            current.setComments("Auto-aprovado (mesmo aprovador do nível anterior)");
+                            approvalRepository.save(current);
+                            checkAndProgressRequisition(requisition); // Recursive call
+                            return;
+                        }
+                    }
+                }
+
                 allLevelsCompleted = false;
+                currentActiveLevel = level;
                 break;
             }
         }
 
         if (allLevelsCompleted) {
             requisition.setStatus(Requisition.RequisitionStatus.APPROVED);
-            requisitionRepository.save(requisition);
+        } else {
+            // Set more granular status based on level if using default workflow levels
+            if (currentActiveLevel == 1) {
+                requisition.setStatus(Requisition.RequisitionStatus.DEPT_HEAD_APPROVAL);
+            } else if (currentActiveLevel == 2 && requisition.isExtraordinary()) {
+                requisition.setStatus(Requisition.RequisitionStatus.GENERAL_DIRECTOR_APPROVAL);
+            } else {
+                requisition.setStatus(Requisition.RequisitionStatus.PENDING_APPROVAL);
+            }
         }
+        requisitionRepository.save(requisition);
     }
 
     private String generateRequisitionCode(UUID tenantId) {
@@ -292,7 +370,15 @@ public class RequisitionService {
 
     private boolean isApprovalActive(RequisitionApproval approval) {
         Requisition req = approval.getRequisition();
-        if (req.getStatus() != Requisition.RequisitionStatus.PENDING_APPROVAL) {
+        Requisition.RequisitionStatus status = req.getStatus();
+
+        // Allow all statuses indicate approval is in progress
+        boolean isPending = status == Requisition.RequisitionStatus.PENDING_APPROVAL ||
+                status == Requisition.RequisitionStatus.DEPT_HEAD_APPROVAL ||
+                status == Requisition.RequisitionStatus.DEPT_DIRECTOR_APPROVAL ||
+                status == Requisition.RequisitionStatus.GENERAL_DIRECTOR_APPROVAL;
+
+        if (!isPending) {
             return false;
         }
 
@@ -300,15 +386,36 @@ public class RequisitionService {
 
         for (int l = 1; l < approval.getLevel(); l++) {
             final int level = l;
-            boolean levelApproved = allReqApprovals.stream()
+            boolean levelCompleted = allReqApprovals.stream()
                     .filter(a -> a.getLevel() == level)
-                    .anyMatch(a -> a.getStatus() == RequisitionApproval.ApprovalStatus.APPROVED);
+                    .anyMatch(a -> a.getStatus() == RequisitionApproval.ApprovalStatus.APPROVED
+                            || a.getStatus() == RequisitionApproval.ApprovalStatus.SKIPPED);
 
-            if (!levelApproved) {
+            if (!levelCompleted) {
                 return false;
             }
         }
         return true;
+    }
+
+    @Autowired
+    private RequisitionItemRepository requisitionItemRepository;
+
+    public List<RequisitionItem> getApprovedItems() {
+        UUID tenantId = TenantContext.getCurrentTenant();
+        // We want items that are APPROVED but not yet in an RFQ (status APPROVED)
+        // Requisition itself must be APPROVED or similar.
+        return requisitionItemRepository.findByStatus(RequisitionItem.RequisitionItemStatus.APPROVED).stream()
+                .filter(item -> item.getTenantId().equals(tenantId))
+                .toList();
+    }
+
+    public List<RequisitionItem> getApprovedItemsByCategory(UUID categoryId) {
+        UUID tenantId = TenantContext.getCurrentTenant();
+        return requisitionItemRepository
+                .findApprovedItemsByCategory(categoryId, RequisitionItem.RequisitionItemStatus.APPROVED).stream()
+                .filter(item -> item.getTenantId().equals(tenantId))
+                .toList();
     }
 
     public List<RequisitionApproval> getApprovalsByRequisition(UUID requisitionId) {

@@ -36,6 +36,6 @@ public class POApproval extends BaseEntity {
     private LocalDateTime actionDate;
 
     public enum ApprovalStatus {
-        PENDING, APPROVED, REJECTED
+        PENDING, APPROVED, REJECTED, DELEGATED, SKIPPED
     }
 }

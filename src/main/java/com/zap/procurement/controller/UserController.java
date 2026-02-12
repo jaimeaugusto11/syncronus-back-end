@@ -1,7 +1,6 @@
 package com.zap.procurement.controller;
 
 import com.zap.procurement.domain.Department;
-import com.zap.procurement.domain.Role;
 import com.zap.procurement.domain.User;
 import com.zap.procurement.dto.DemoUserRequest;
 import com.zap.procurement.dto.UserDTO;
@@ -14,9 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/users")
@@ -36,6 +33,7 @@ public class UserController {
     private UserRepository userRepository;
 
     @PostMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_USERS')")
     public ResponseEntity<UserDTO> createUser(@RequestBody UserDTO dto) {
         User user = new User();
         user.setName(dto.getName());
@@ -43,15 +41,22 @@ public class UserController {
 
         UUID tenantId = com.zap.procurement.config.TenantContext.getCurrentTenant();
         user.setTenantId(tenantId);
-        // Note: Role assignment should be handled via UserService.updateUser or
-        // dedicated endpoint
+
+        if (dto.getRole() != null) {
+            Optional<com.zap.procurement.domain.Role> roleOpt = roleRepository.findByNameAndTenantId(dto.getRole(),
+                    tenantId);
+            if (roleOpt.isEmpty()) {
+                roleOpt = roleRepository.findBySlugAndTenantId(dto.getRole(), tenantId);
+            }
+            roleOpt.ifPresent(user::setRole);
+        }
 
         if (dto.getDepartmentId() != null) {
             Department dept = departmentRepository.findById(dto.getDepartmentId()).orElse(null);
-            user.setDepartment(dept);
+            if (dept != null && dept.getTenantId().equals(tenantId)) {
+                user.setDepartment(dept);
+            }
         }
-
-        user.setTenantId(com.zap.procurement.config.TenantContext.getCurrentTenant());
 
         User saved = userService.createUser(user);
         return ResponseEntity.ok(toDTO(saved));
@@ -59,6 +64,18 @@ public class UserController {
 
     @PostMapping("/demo")
     public ResponseEntity<UserDTO> createDemoUser(@RequestBody DemoUserRequest request) {
+        // Demo endpoint - likely public or protected by special key, but for now open
+        // or just authenticated?
+        // Let's leave it open or simple authenticated as it might be used for
+        // onboarding.
+        // Actually, if it's "demo", likely open.
+        // But we put 'anyRequest().authenticated()' in SecurityConfig.
+        // So user must be logged in?
+        // Or we should allow it in SecurityConfig if it is for registration.
+        // Assuming it requires at least a token, or if it's typically for initial
+        // setup, maybe AllowAnonymous?
+        // Use 'permitAll' in security config if needed. For now treating as
+        // authenticated or skipped.
         String roleName = request.getRole();
 
         String email = request.getEmail() != null ? request.getEmail()
@@ -82,6 +99,7 @@ public class UserController {
     }
 
     @GetMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_USERS')")
     public ResponseEntity<java.util.List<UserDTO>> getAllUsers() {
         // Assume default tenant for now or get from context
         java.util.UUID tenantId = com.zap.procurement.config.TenantContext.getCurrentTenant();
@@ -97,28 +115,19 @@ public class UserController {
         String token = authHeader.replace("Bearer ", "");
         String email = extractEmailFromToken(token);
 
-        System.out.println("[UserController] /users/me called with email: " + email);
-
         if (email == null) {
-            System.out.println("[UserController] Email is null, returning 401");
             return ResponseEntity.status(401).build();
         }
 
         Optional<User> userOpt = userService.findByEmail(email);
         if (!userOpt.isPresent()) {
-            System.out.println("[UserController] User not found for email: " + email);
             return ResponseEntity.status(401).build();
         }
 
         User user = userOpt.get();
-        System.out.println("[UserController] User found: " + user.getEmail());
-        System.out
-                .println("[UserController] User role: " + (user.getRole() != null ? user.getRole().getName() : "NULL"));
-        System.out.println("[UserController] User role object: " + user.getRole());
+        // Logs removed for safety and cleanliness
 
         UserDTO dto = toDTO(user);
-        System.out.println("[UserController] DTO role: " + dto.getRole());
-
         return ResponseEntity.ok(dto);
     }
 
@@ -143,67 +152,82 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_USERS')")
     public ResponseEntity<UserDTO> updateUser(@PathVariable UUID id, @RequestBody UserDTO dto) {
         User updated = userService.updateUser(id, dto);
         return ResponseEntity.ok(toDTO(updated));
     }
 
+    @Autowired
+    private com.zap.procurement.config.RBACSeeder rbacSeeder;
+
     @GetMapping("/init-system")
+    @org.springframework.security.access.prepost.PreAuthorize("permitAll()")
     public ResponseEntity<String> initSystem() {
         try {
-            // 1. Find admin.demo user
-            Optional<User> userOpt = userService.findByEmail("admin.demo@supplySinc.com");
-            if (!userOpt.isPresent()) {
-                return ResponseEntity.status(404).body("User admin.demo@supplySinc.com not found");
+            // 1. Get current tenant from context (already set by JwtAuthenticationFilter)
+            UUID tenantId = com.zap.procurement.config.TenantContext.getCurrentTenant();
+
+            if (tenantId == null) {
+                // Fallback: try to find admin.demo if no tenant in context
+                Optional<User> adminOpt = userService.findByEmail("admin.demo@supplySinc.com");
+                if (adminOpt.isPresent()) {
+                    tenantId = adminOpt.get().getTenantId();
+                } else {
+                    return ResponseEntity.status(400).body("Could not determine tenant to initialize.");
+                }
             }
-            User user = userOpt.get();
-            UUID tenantId = user.getTenantId();
 
-            // 2. Ensure Permissions exist (Global or per tenant? Model says per tenant in
-            // Seeder)
-            // For simplicity, we assume permissions are seeded. If not, we should seed
-            // them.
-            // But permissions in RBACSeeder seem to be created with a specific tenantId.
-            // Let's check if we need to create permissions for this tenant.
+            // 2. Seed RBAC for this tenant
+            rbacSeeder.seedTenant(tenantId);
 
-            // 3. Ensure Roles exist for this tenant
-            ensureRoleExists("ADMIN_GERAL", "Administrador Geral com acesso total", tenantId, true);
-            ensureRoleExists("GESTOR_PROCUREMENT", "Gestor de Procurement e Compras", tenantId, true);
-            ensureRoleExists("REQUISITANTE", "Utilizador que pode criar requisições", tenantId, true);
+            // 3. Ensure the current user has correct role if they match system roles (even
+            // if already assigned)
+            UUID userId = com.zap.procurement.config.TenantContext.getCurrentUser();
+            if (userId != null) {
+                userRepository.findById(userId).ifPresent(user -> {
+                    // Update user role if it matches system roles by name (case insensitive)
+                    String currentRoleName = user.getRole() != null ? user.getRole().getName() : "";
 
-            // 4. Assign ADMIN_GERAL to user
-            Role adminRole = roleRepository.findByNameAndTenantId("ADMIN_GERAL", tenantId)
-                    .orElseThrow(() -> new RuntimeException("ADMIN_GERAL role could not be created/found"));
+                    if (user.getRole() == null || currentRoleName.equalsIgnoreCase("APROVADOR")
+                            || currentRoleName.equalsIgnoreCase("ADMIN_GERAL")) {
+                        String targetRole = (currentRoleName.equalsIgnoreCase("APROVADOR")
+                                || user.getEmail().contains("gestor"))
+                                        ? "APROVADOR"
+                                        : "ADMIN_GERAL";
 
-            user.setRole(adminRole);
-            userRepository.save(user);
+                        roleRepository.findByNameAndTenantId(targetRole, user.getTenantId()).ifPresent(role -> {
+                            user.setRole(role);
+                            userRepository.save(user);
+                        });
+                    }
+                });
+            }
 
             return ResponseEntity.ok(
-                    "System initialized for tenant " + tenantId + ". User " + user.getEmail() + " is now ADMIN_GERAL.");
+                    "System initialized for tenant " + tenantId + ". RBAC roles and permissions updated.");
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(500).body("Error: " + e.getMessage());
         }
     }
 
-    private Role ensureRoleExists(String name, String description, UUID tenantId, boolean isSystem) {
-        return roleRepository.findByNameAndTenantId(name, tenantId)
-                .orElseGet(() -> {
-                    Role newRole = new Role();
-                    newRole.setName(name);
-                    newRole.setSlug(name);
-                    newRole.setDescription(description);
-                    newRole.setSystem(isSystem);
-                    newRole.setTenantId(tenantId);
-                    newRole.setActive(true);
-                    // We could assign all permissions to ADMIN_GERAL here, but for now let's just
-                    // create the role
-                    // to unblock the login.
-                    return roleRepository.save(newRole);
-                });
+    @GetMapping("/debug/my-authorities")
+    public ResponseEntity<?> getMyAuthorities() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null)
+            return ResponseEntity.status(401).body("Not authenticated");
+
+        return ResponseEntity.ok(java.util.Map.of(
+                "username", auth.getName(),
+                "authorities", auth.getAuthorities().stream()
+                        .map(org.springframework.security.core.GrantedAuthority::getAuthority)
+                        .toList(),
+                "details", auth.getPrincipal()));
     }
 
     @DeleteMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_USERS')")
     public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
@@ -216,7 +240,9 @@ public class UserController {
         dto.setEmail(user.getEmail());
         dto.setTenantId(user.getTenantId());
         if (user.getRole() != null) {
-            dto.setRole(user.getRole().getName());
+            // Use slug for consistent role identification (e.g. APROVADOR instead of
+            // Aprovador)
+            dto.setRole(user.getRole().getSlug());
             dto.setPermissions(user.getRole().getPermissions().stream()
                     .map(com.zap.procurement.domain.Permission::getSlug)
                     .collect(java.util.stream.Collectors.toSet()));

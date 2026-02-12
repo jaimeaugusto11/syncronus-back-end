@@ -15,19 +15,23 @@ import java.util.UUID;
 @RequestMapping("/categories")
 @CrossOrigin(origins = "*")
 @RequiredArgsConstructor
+@org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
 public class CategoryController {
 
     private final CategoryRepository categoryRepository;
     private final AuditLogService auditLogService;
 
     @GetMapping
-    public ResponseEntity<List<Category>> getAllCategories() {
+    public ResponseEntity<List<com.zap.procurement.dto.CategoryDTO>> getAllCategories() {
         UUID tenantId = TenantContext.getCurrentTenant();
-        return ResponseEntity.ok(categoryRepository.findByTenantIdAndParentIsNull(tenantId));
+        return ResponseEntity.ok(categoryRepository.findByTenantIdAndParentIsNull(tenantId).stream()
+                .map(this::toDTO)
+                .collect(java.util.stream.Collectors.toList()));
     }
 
     @PostMapping
-    public ResponseEntity<Category> createCategory(@RequestBody CategoryDTO dto) {
+    public ResponseEntity<com.zap.procurement.dto.CategoryDTO> createCategory(
+            @RequestBody com.zap.procurement.dto.CategoryDTO dto) {
         UUID tenantId = TenantContext.getCurrentTenant();
 
         Category category = new Category();
@@ -40,16 +44,20 @@ public class CategoryController {
         if (dto.getParentId() != null) {
             Category parent = categoryRepository.findById(dto.getParentId())
                     .orElseThrow(() -> new RuntimeException("Parent category not found"));
+            if (!parent.getTenantId().equals(tenantId)) {
+                throw new RuntimeException("Unauthorized access to parent category");
+            }
             category.setParent(parent);
         }
 
         Category saved = categoryRepository.save(category);
         auditLogService.log("CATEGORY", saved.getId(), "CREATE", "Created category: " + saved.getName());
-        return ResponseEntity.ok(saved);
+        return ResponseEntity.ok(toDTO(saved));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Category> updateCategory(@PathVariable UUID id, @RequestBody CategoryDTO dto) {
+    public ResponseEntity<com.zap.procurement.dto.CategoryDTO> updateCategory(@PathVariable UUID id,
+            @RequestBody com.zap.procurement.dto.CategoryDTO dto) {
         UUID tenantId = TenantContext.getCurrentTenant();
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Category not found"));
@@ -68,7 +76,6 @@ public class CategoryController {
         if (dto.getParentId() != null) {
             Category parent = categoryRepository.findById(dto.getParentId())
                     .orElseThrow(() -> new RuntimeException("Parent category not found"));
-
             if (!parent.getTenantId().equals(tenantId)) {
                 throw new RuntimeException("Unauthorized access to parent category");
             }
@@ -82,7 +89,7 @@ public class CategoryController {
                 + saved.isActive();
         auditLogService.log("CATEGORY", saved.getId(), "UPDATE", "Updated category: " + saved.getName(), oldValue,
                 newValue);
-        return ResponseEntity.ok(saved);
+        return ResponseEntity.ok(toDTO(saved));
     }
 
     @DeleteMapping("/{id}")
@@ -95,57 +102,21 @@ public class CategoryController {
             throw new RuntimeException("Unauthorized access to category");
         }
 
-        categoryRepository.deleteById(id);
-        auditLogService.log("CATEGORY", id, "DELETE", "Deleted category");
+        categoryRepository.delete(category);
+        auditLogService.log("CATEGORY", id, "DELETE", "Deleted category: " + category.getName());
         return ResponseEntity.noContent().build();
     }
 
-    public static class CategoryDTO {
-        private String name;
-        private String icon;
-        private String description;
-        private UUID parentId;
-        private Boolean active;
-
-        // Getters and Setters
-        public String getName() {
-            return name;
+    private com.zap.procurement.dto.CategoryDTO toDTO(Category category) {
+        com.zap.procurement.dto.CategoryDTO dto = new com.zap.procurement.dto.CategoryDTO();
+        dto.setId(category.getId());
+        dto.setName(category.getName());
+        dto.setIcon(category.getIcon());
+        dto.setDescription(category.getDescription());
+        dto.setActive(category.isActive());
+        if (category.getParent() != null) {
+            dto.setParentId(category.getParent().getId());
         }
-
-        public void setName(String name) {
-            this.name = name;
-        }
-
-        public String getIcon() {
-            return icon;
-        }
-
-        public void setIcon(String icon) {
-            this.icon = icon;
-        }
-
-        public String getDescription() {
-            return description;
-        }
-
-        public void setDescription(String description) {
-            this.description = description;
-        }
-
-        public UUID getParentId() {
-            return parentId;
-        }
-
-        public void setParentId(UUID parentId) {
-            this.parentId = parentId;
-        }
-
-        public Boolean getActive() {
-            return active;
-        }
-
-        public void setActive(Boolean active) {
-            this.active = active;
-        }
+        return dto;
     }
 }

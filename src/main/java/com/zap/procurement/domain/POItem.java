@@ -28,6 +28,14 @@ public class POItem {
     @JoinColumn(name = "purchase_order_id", nullable = false)
     private PurchaseOrder purchaseOrder;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_requisition_item_id")
+    private RequisitionItem sourceRequisitionItem;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_rfq_item_id")
+    private RFQItem sourceRfqItem;
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String description;
 

@@ -81,7 +81,11 @@ public class UserService {
 
         if (roleName != null) {
             Role role = roleRepository.findByNameAndTenantId(roleName, tenant.getId()).orElse(null);
-            user.setRole(role);
+            if (role != null) {
+                user.setRole(role);
+                // Force initialization of permissions if lazily loaded (though it's EAGER now)
+                role.getPermissions().size();
+            }
         }
 
         user.setTenantId(tenant.getId());
@@ -104,8 +108,12 @@ public class UserService {
         if (dto.getName() != null)
             user.setName(dto.getName());
         if (dto.getRole() != null) {
-            Role role = roleRepository.findByNameAndTenantId(dto.getRole(), user.getTenantId())
-                    .orElseThrow(() -> new RuntimeException("Role not found: " + dto.getRole()));
+            String roleIdentifier = dto.getRole();
+            Optional<Role> roleOpt = roleRepository.findByNameAndTenantId(roleIdentifier, user.getTenantId());
+            if (roleOpt.isEmpty()) {
+                roleOpt = roleRepository.findBySlugAndTenantId(roleIdentifier, user.getTenantId());
+            }
+            Role role = roleOpt.orElseThrow(() -> new RuntimeException("Papel não encontrado: " + roleIdentifier));
             user.setRole(role);
         }
 

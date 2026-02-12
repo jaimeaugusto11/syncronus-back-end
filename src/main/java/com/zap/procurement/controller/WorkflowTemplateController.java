@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/workflows")
 @CrossOrigin(origins = "*")
+@org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
 public class WorkflowTemplateController {
 
     @Autowired

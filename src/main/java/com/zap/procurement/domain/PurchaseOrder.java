@@ -28,6 +28,7 @@ public class PurchaseOrder extends BaseEntity {
     @OneToMany(mappedBy = "purchaseOrder", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PORequisition> requisitions = new ArrayList<>();
 
+    @Deprecated
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "rfq_id")
     private RFQ rfq;

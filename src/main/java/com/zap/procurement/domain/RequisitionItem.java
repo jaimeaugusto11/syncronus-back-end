@@ -40,9 +40,28 @@ public class RequisitionItem extends BaseEntity {
     @JoinColumn(name = "preferred_supplier_id")
     private Supplier preferredSupplier;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private RequisitionItemStatus status = RequisitionItemStatus.DRAFT;
+
     @PrePersist
     @Override
     protected void onCreate() {
         super.onCreate();
+        if (this.status == null) {
+            this.status = RequisitionItemStatus.DRAFT;
+        }
+    }
+
+    public enum RequisitionItemStatus {
+        DRAFT,
+        PENDING_APPROVAL,
+        APPROVED,
+        IN_SOURCING,
+        QUOTED,
+        AWARDED,
+        PO_CREATED,
+        COMPLETED,
+        CANCELLED
     }
 }

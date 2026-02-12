@@ -33,6 +33,9 @@ public class SupplierService {
     private CategoryRepository categoryRepository;
 
     @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
     private SupplierDocumentRepository supplierDocumentRepository;
 
     @Autowired
@@ -59,19 +62,38 @@ public class SupplierService {
     public Supplier createSupplier(Supplier supplier) {
         UUID tenantId = TenantContext.getCurrentTenant();
 
+        // Validate email uniqueness
+        if (userRepository.existsByEmail(supplier.getEmail()) ||
+                supplierUserRepository.existsByEmail(supplier.getEmail())) {
+            throw new RuntimeException("Este email já está em uso no sistema.");
+        }
+
         supplier.setTenantId(tenantId);
         if (supplier.getCode() == null || supplier.getCode().isEmpty()) {
             supplier.setCode(generateSupplierCode(tenantId));
         }
-        Supplier saved = supplierRepository.save(supplier);
 
-        // Process categories if provided
-        if (supplier.getCategories() != null && !supplier.getCategories().isEmpty()) {
-            for (com.zap.procurement.domain.SupplierCategory sc : supplier.getCategories()) {
-                sc.setSupplier(saved);
-                supplierCategoryRepository.save(sc);
+        // Link categories if provided
+        if (supplier.getCategories() != null) {
+            for (SupplierCategory sc : supplier.getCategories()) {
+                sc.setSupplier(supplier);
+                if (sc.getTenantId() == null) {
+                    sc.setTenantId(tenantId);
+                }
             }
         }
+
+        // Link documents if provided
+        if (supplier.getDocuments() != null) {
+            for (SupplierDocument doc : supplier.getDocuments()) {
+                doc.setSupplier(supplier);
+                if (doc.getTenantId() == null) {
+                    doc.setTenantId(tenantId);
+                }
+            }
+        }
+
+        Supplier saved = supplierRepository.save(supplier);
 
         // Create initial SupplierUser
         if (supplier.getInitialPassword() != null && !supplier.getInitialPassword().isEmpty()) {
@@ -110,11 +132,12 @@ public class SupplierService {
                     existing.setLogoUrl(supplierDetails.getLogoUrl());
 
                     // Bulk update categories if provided
-                    if (supplierDetails.getCategories() != null && !supplierDetails.getCategories().isEmpty()) {
+                    if (supplierDetails.getCategories() != null) {
                         existing.getCategories().clear();
                         for (SupplierCategory sc : supplierDetails.getCategories()) {
-                            Category category = categoryRepository.findById(sc.getCategory().getId())
-                                    .orElseThrow(() -> new RuntimeException("Category not found"));
+                            UUID catId = sc.getCategory().getId();
+                            Category category = categoryRepository.findById(catId)
+                                    .orElseThrow(() -> new RuntimeException("Category not found: " + catId));
                             existing.addCategory(category, sc.getIsPrimary());
                         }
                     }
@@ -149,23 +172,26 @@ public class SupplierService {
         Supplier supplier = supplierRepository.findById(supplierId)
                 .orElseThrow(() -> new RuntimeException("Supplier not found"));
 
+        boolean modified = false;
         for (com.zap.procurement.dto.CategoryAssignmentDTO dto : categories) {
-            Category category = categoryRepository.findById(dto.getCategoryId())
-                    .orElseThrow(() -> new RuntimeException("Category not found: " + dto.getCategoryId()));
-
-            if (supplierCategoryRepository.existsBySupplierIdAndCategoryId(supplierId, dto.getCategoryId())) {
+            // Check if already exists to avoid duplicates
+            if (supplier.getCategories().stream()
+                    .anyMatch(sc -> sc.getCategory().getId().equals(dto.getCategoryId()))) {
                 continue;
             }
 
+            Category category = categoryRepository.findById(dto.getCategoryId())
+                    .orElseThrow(() -> new RuntimeException("Category not found: " + dto.getCategoryId()));
+
             supplier.addCategory(category, dto.getIsPrimary());
+            modified = true;
         }
 
-        supplierRepository.save(supplier);
-        supplierRepository.flush();
+        if (modified) {
+            return supplierRepository.save(supplier);
+        }
 
-        // Reload with EntityGraph to ensure categories are loaded
-        return supplierRepository.findById(supplierId)
-                .orElseThrow(() -> new RuntimeException("Supplier not found after save"));
+        return supplier;
     }
 
     @Transactional

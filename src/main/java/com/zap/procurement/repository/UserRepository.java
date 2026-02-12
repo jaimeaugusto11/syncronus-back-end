@@ -13,10 +13,14 @@ import java.util.UUID;
 public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
 
-    @Query("SELECT u FROM User u LEFT JOIN FETCH u.role WHERE u.email = :email")
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.role r LEFT JOIN FETCH r.permissions WHERE u.email = :email")
     Optional<User> findByEmailWithRole(@Param("email") String email);
 
     boolean existsByEmail(String email);
 
     java.util.List<User> findByTenantId(UUID tenantId);
+
+    @Query("SELECT u FROM User u WHERE u.role.name = :roleName AND u.tenantId = :tenantId")
+    java.util.List<User> findUsersByRoleNameAndTenantId(@Param("roleName") String roleName,
+            @Param("tenantId") UUID tenantId);
 }

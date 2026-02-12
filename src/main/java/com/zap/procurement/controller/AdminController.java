@@ -15,6 +15,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/admin")
 @CrossOrigin(origins = "*")
+@org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
 public class AdminController {
 
     @Autowired

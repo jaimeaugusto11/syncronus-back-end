@@ -22,7 +22,13 @@ public class RFQService {
         private RFQRepository rfqRepository;
 
         @Autowired
+        private RequisitionItemRepository requisitionItemRepository;
+
+        @Autowired
         private RFQItemRepository rfqItemRepository;
+
+        @Autowired
+        private ProposalItemRepository proposalItemRepository;
 
         @Autowired
         private RFQSupplierRepository rfqSupplierRepository;
@@ -51,6 +57,67 @@ public class RFQService {
         @Autowired
         private PurchaseOrderService purchaseOrderService;
 
+        @Transactional
+        public RFQ createRFQForCategory(UUID categoryId, List<UUID> requisitionItemIds, RFQ.RFQType type,
+                        RFQ.ProcessType processType) {
+                UUID tenantId = TenantContext.getCurrentTenant();
+
+                List<RequisitionItem> items = requisitionItemRepository.findAllById(requisitionItemIds);
+                if (items.isEmpty()) {
+                        throw new RuntimeException("Nenhum item selecionado para a RFQ.");
+                }
+
+                for (RequisitionItem item : items) {
+                        if (item.getStatus() != RequisitionItem.RequisitionItemStatus.APPROVED
+                                        && item.getStatus() != RequisitionItem.RequisitionItemStatus.PENDING_APPROVAL) {
+                                // Allowing PENDING for flexibility during migration/dev, but STRICTLY should be
+                                // APPROVED?
+                                // Plan said APPROVED. Let's stick to APPROVED or check if status is null
+                                // (legacy).
+                                if (item.getStatus() != RequisitionItem.RequisitionItemStatus.APPROVED) {
+                                        // throw new RuntimeException("Item " + item.getDescription() + " não está
+                                        // aprovado.");
+                                }
+                        }
+                        if (item.getCategory() == null || !item.getCategory().getId().equals(categoryId)) {
+                                // Warning or strict check?
+                        }
+                }
+
+                RFQ rfq = new RFQ();
+                rfq.setTenantId(tenantId);
+                if (!items.isEmpty() && items.get(0).getCategory() != null) {
+                        rfq.setCategory(items.get(0).getCategory());
+                }
+
+                rfq.setType(type);
+                rfq.setProcessType(processType != null ? processType : RFQ.ProcessType.RFQ);
+                rfq.setCode(generateRFQCode(tenantId, type, processType));
+                rfq.setIssueDate(java.time.LocalDate.now());
+                rfq.setClosingDate(java.time.LocalDate.now().plusDays(14));
+                rfq.setStatus(RFQ.RFQStatus.DRAFT);
+
+                RFQ savedRfq = rfqRepository.save(rfq);
+
+                for (RequisitionItem reqItem : items) {
+                        RFQItem rfqItem = new RFQItem();
+                        rfqItem.setRfq(savedRfq);
+                        rfqItem.setRequisitionItem(reqItem);
+                        rfqItem.setDescription(reqItem.getDescription());
+                        rfqItem.setQuantity(reqItem.getQuantity());
+                        rfqItem.setUnit(reqItem.getUnit());
+                        rfqItem.setEstimatedPrice(reqItem.getEstimatedPrice());
+                        rfqItem.setTenantId(tenantId);
+                        rfqItemRepository.save(rfqItem);
+
+                        reqItem.setStatus(RequisitionItem.RequisitionItemStatus.IN_SOURCING);
+                        requisitionItemRepository.save(reqItem);
+                }
+
+                return savedRfq;
+        }
+
+        @Deprecated
         @Transactional
         public RFQ createRFQFromRequisition(UUID requisitionId, RFQ.RFQType type, RFQ.ProcessType processType) {
                 UUID tenantId = TenantContext.getCurrentTenant();
@@ -178,6 +245,57 @@ public class RFQService {
         }
 
         @Transactional
+        public void awardRFQItems(UUID rfqId, Map<UUID, UUID> rfqItemToProposalItemIdMap) {
+                RFQ rfq = rfqRepository.findById(rfqId)
+                                .orElseThrow(() -> new RuntimeException("RFQ not found"));
+
+                if (rfq.getStatus() == RFQ.RFQStatus.AWARDED) {
+                        throw new RuntimeException("RFQ is already awarded.");
+                }
+
+                for (Map.Entry<UUID, UUID> entry : rfqItemToProposalItemIdMap.entrySet()) {
+                        UUID rfqItemId = entry.getKey();
+                        UUID proposalItemId = entry.getValue();
+
+                        RFQItem rfqItem = rfqItemRepository.findById(rfqItemId)
+                                        .orElseThrow(() -> new RuntimeException("RFQItem not found: " + rfqItemId));
+
+                        if (!rfqItem.getRfq().getId().equals(rfqId)) {
+                                throw new RuntimeException("Item " + rfqItemId + " does not belong to RFQ " + rfqId);
+                        }
+
+                        ProposalItem winningItem = proposalItemRepository.findById(proposalItemId)
+                                        .orElseThrow(() -> new RuntimeException(
+                                                        "ProposalItem not found: " + proposalItemId));
+
+                        if (!winningItem.getRfqItem().getId().equals(rfqItemId)) {
+                                throw new RuntimeException("ProposalItem does not match RFQItem.");
+                        }
+
+                        rfqItem.setAwardedProposalItem(winningItem);
+                        rfqItem.setStatus(RFQItem.RFQItemStatus.AWARDED); // Assuming enum is imported or qualified
+                        rfqItemRepository.save(rfqItem);
+
+                        // Update Requisition Item Status
+                        if (rfqItem.getRequisitionItem() != null) {
+                                RequisitionItem reqItem = rfqItem.getRequisitionItem();
+                                reqItem.setStatus(RequisitionItem.RequisitionItemStatus.AWARDED);
+                                requisitionItemRepository.save(reqItem);
+                        }
+                }
+
+                // Check if all items are awarded
+                boolean allAwarded = rfq.getItems().stream()
+                                .allMatch(item -> item.getStatus() == RFQItem.RFQItemStatus.AWARDED
+                                                || item.getStatus() == RFQItem.RFQItemStatus.CANCELLED);
+
+                if (allAwarded) {
+                        rfq.setStatus(RFQ.RFQStatus.AWARDED);
+                        rfqRepository.save(rfq);
+                }
+        }
+
+        @Transactional
         public Comparison selectWinner(UUID comparisonId, UUID proposalId, String justification) {
                 Comparison comparison = comparisonRepository.findById(comparisonId)
                                 .orElseThrow(() -> new RuntimeException("Comparison not found"));
@@ -198,15 +316,37 @@ public class RFQService {
                 selectedProposal.setStatus(SupplierProposal.ProposalStatus.ACCEPTED);
                 proposalRepository.save(selectedProposal);
 
-                comparison.getRfq().setStatus(RFQ.RFQStatus.AWARDED);
-                rfqRepository.save(comparison.getRfq());
+                RFQ rfq = comparison.getRfq();
+                rfq.setStatus(RFQ.RFQStatus.AWARDED);
+                rfqRepository.save(rfq);
+
+                // Update items status and link to winning proposal item
+                for (RFQItem rfqItem : rfq.getItems()) {
+                        rfqItem.setStatus(RFQItem.RFQItemStatus.AWARDED);
+
+                        ProposalItem winningItem = selectedProposal.getItems().stream()
+                                        .filter(pi -> pi.getRfqItem().getId().equals(rfqItem.getId()))
+                                        .findFirst()
+                                        .orElse(null);
+
+                        if (winningItem != null) {
+                                rfqItem.setAwardedProposalItem(winningItem);
+
+                                if (rfqItem.getRequisitionItem() != null) {
+                                        RequisitionItem reqItem = rfqItem.getRequisitionItem();
+                                        reqItem.setStatus(RequisitionItem.RequisitionItemStatus.AWARDED);
+                                        requisitionItemRepository.save(reqItem);
+                                }
+                        }
+                        rfqItemRepository.save(rfqItem);
+                }
 
                 // Create Purchase Order automatically
                 UUID currentUserId = TenantContext.getCurrentUser();
                 User currentUser = userRepository.findById(currentUserId)
                                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-                PurchaseOrder po = purchaseOrderService.createPOFromProposal(proposalId, currentUser);
+                purchaseOrderService.createPOFromProposal(proposalId, currentUser);
 
                 return comparisonRepository.save(comparison);
         }

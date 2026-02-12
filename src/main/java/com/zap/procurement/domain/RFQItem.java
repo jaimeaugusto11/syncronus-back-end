@@ -35,6 +35,17 @@ public class RFQItem extends BaseEntity {
     @Column(name = "estimated_price")
     private BigDecimal estimatedPrice;
 
-    @Column(length = 1000)
-    private String notes;
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "awarded_proposal_item_id")
+    private ProposalItem awardedProposalItem;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private RFQItemStatus status = RFQItemStatus.PENDING;
+
+    public enum RFQItemStatus {
+        PENDING,
+        AWARDED,
+        CANCELLED
+    }
 }

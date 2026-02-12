@@ -52,7 +52,7 @@ public class AuthController {
         userDTO.setName(user.getName());
         userDTO.setEmail(user.getEmail());
         if (user.getRole() != null) {
-            userDTO.setRole(user.getRole().getName());
+            userDTO.setRole(user.getRole().getSlug());
             userDTO.setPermissions(user.getRole().getPermissions().stream()
                     .map(com.zap.procurement.domain.Permission::getSlug)
                     .collect(java.util.stream.Collectors.toSet()));

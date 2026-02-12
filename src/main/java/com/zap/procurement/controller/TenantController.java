@@ -39,17 +39,42 @@ public class TenantController {
     }
 
     @PostMapping
-    public ResponseEntity<TenantDTO> createTenant(@RequestBody Tenant tenant) {
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_SETTINGS') or hasAuthority('ADMIN_ACCESS')")
+    public ResponseEntity<TenantDTO> createTenant(@RequestBody TenantDTO dto) {
+        Tenant tenant = new Tenant();
+        tenant.setName(dto.getName());
+        tenant.setCode(dto.getSubdomain());
+        tenant.setLogoUrl(dto.getLogoUrl());
+        tenant.setPrimaryColor(dto.getPrimaryColor());
+        tenant.setSecondaryColor(dto.getSecondaryColor());
+        if (dto.getStatus() != null) {
+            tenant.setStatus(Tenant.TenantStatus.valueOf(dto.getStatus()));
+        }
+        if (dto.getSubscriptionPlan() != null) {
+            tenant.setSubscriptionPlan(Tenant.SubscriptionPlan.valueOf(dto.getSubscriptionPlan()));
+        }
+
         Tenant saved = tenantRepository.save(tenant);
         return ResponseEntity.ok(toDTO(saved));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<TenantDTO> updateTenant(@PathVariable java.util.UUID id, @RequestBody Tenant tenant) {
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_SETTINGS') or hasAuthority('ADMIN_ACCESS')")
+    public ResponseEntity<TenantDTO> updateTenant(@PathVariable java.util.UUID id, @RequestBody TenantDTO dto) {
         return tenantRepository.findById(id)
                 .map(existing -> {
-                    tenant.setId(id);
-                    Tenant updated = tenantRepository.save(tenant);
+                    existing.setName(dto.getName());
+                    existing.setCode(dto.getSubdomain());
+                    existing.setLogoUrl(dto.getLogoUrl());
+                    existing.setPrimaryColor(dto.getPrimaryColor());
+                    existing.setSecondaryColor(dto.getSecondaryColor());
+                    if (dto.getStatus() != null) {
+                        existing.setStatus(Tenant.TenantStatus.valueOf(dto.getStatus()));
+                    }
+                    if (dto.getSubscriptionPlan() != null) {
+                        existing.setSubscriptionPlan(Tenant.SubscriptionPlan.valueOf(dto.getSubscriptionPlan()));
+                    }
+                    Tenant updated = tenantRepository.save(existing);
                     return ResponseEntity.ok(toDTO(updated));
                 })
                 .orElse(ResponseEntity.notFound().build());

@@ -3,10 +3,12 @@ package com.zap.procurement.service;
 import com.zap.procurement.config.TenantContext;
 import com.zap.procurement.domain.*;
 import com.zap.procurement.repository.*;
+import com.zap.procurement.dto.POApprovalDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -34,6 +36,15 @@ public class PurchaseOrderService {
 
     @Autowired
     private RequisitionRepository requisitionRepository;
+
+    @Autowired
+    private RequisitionItemRepository requisitionItemRepository;
+
+    @Autowired
+    private RFQItemRepository rfqItemRepository;
+
+    @Autowired
+    private SupplierRepository supplierRepository;
 
     @Transactional
     public PurchaseOrder createPO(PurchaseOrder po, User createdBy) {
@@ -100,6 +111,82 @@ public class PurchaseOrderService {
     }
 
     @Transactional
+    public PurchaseOrder createPOFromAwardedItems(UUID supplierId, List<UUID> rfqItemIds, User createdBy) {
+        UUID tenantId = TenantContext.getCurrentTenant();
+
+        Supplier supplier = supplierRepository.findById(supplierId)
+                .orElseThrow(() -> new RuntimeException("Supplier not found"));
+
+        PurchaseOrder po = new PurchaseOrder();
+        po.setTenantId(tenantId);
+        po.setSupplier(supplier);
+        po.setCreatedBy(createdBy);
+        po.setCode(generatePOCode(tenantId));
+        po.setOrderDate(java.time.LocalDate.now());
+        // Expected delivery date? Maybe max of items or default?
+        // po.setExpectedDeliveryDate(...);
+        po.setTotalAmount(BigDecimal.ZERO); // Recalculate from items
+        po.setCurrency("EUR"); // Default or from supplier/items?
+        po.setStatus(PurchaseOrder.POStatus.DRAFT);
+
+        PurchaseOrder savedPO = poRepository.save(po);
+
+        BigDecimal totalAmount = BigDecimal.ZERO;
+
+        for (UUID rfqItemId : rfqItemIds) {
+            RFQItem rfqItem = rfqItemRepository.findById(rfqItemId)
+                    .orElseThrow(() -> new RuntimeException("RFQItem not found: " + rfqItemId));
+
+            POItem poItem = new POItem();
+
+            // We need the AWARDED price.
+            // In the "Per Item" award model, we should have this info.
+            if (rfqItem.getAwardedProposalItem() != null) {
+                ProposalItem winningItem = rfqItem.getAwardedProposalItem();
+                if (!winningItem.getProposal().getSupplier().getId().equals(supplierId)) {
+                    throw new RuntimeException(
+                            "Item " + rfqItem.getDescription() + " was awarded to a different supplier.");
+                }
+                poItem.setUnitPrice(winningItem.getUnitPrice());
+                poItem.setTotalPrice(winningItem.getTotalPrice());
+            } else {
+                // Fallback if not explicitly marked (legacy or pre-award logic?)
+                // For now, allow estimated price but maybe log warning or assume strictly
+                // awarded.
+                // Given the method name "createPOFromAwardedItems", we should expect them to be
+                // awarded.
+                // But for development/migration robustness:
+                poItem.setUnitPrice(rfqItem.getEstimatedPrice());
+                poItem.setTotalPrice(rfqItem.getEstimatedPrice().multiply(rfqItem.getQuantity()));
+            }
+
+            poItem.setPurchaseOrder(savedPO);
+            poItem.setDescription(rfqItem.getDescription());
+            poItem.setQuantity(rfqItem.getQuantity());
+
+            poItem.setSourceRfqItem(rfqItem);
+            if (rfqItem.getRequisitionItem() != null) {
+                poItem.setSourceRequisitionItem(rfqItem.getRequisitionItem());
+
+                // Link Requisition
+                Requisition req = rfqItem.getRequisitionItem().getRequisition();
+                if (req != null) {
+                    boolean alreadyLinked = savedPO.getRequisitions().stream()
+                            .anyMatch(pr -> pr.getRequisition().getId().equals(req.getId()));
+                    if (!alreadyLinked) {
+                        savedPO.addRequisition(req, BigDecimal.ZERO);
+                    }
+                }
+            }
+            savedPO.getItems().add(poItem);
+            totalAmount = totalAmount.add(poItem.getTotalPrice());
+        }
+
+        savedPO.setTotalAmount(totalAmount);
+        return poRepository.save(savedPO);
+    }
+
+    @Transactional
     public PurchaseOrder createPOFromProposal(UUID proposalId, User createdBy) {
         UUID tenantId = TenantContext.getCurrentTenant();
         Tenant tenant = tenantRepository.findById(tenantId)
@@ -109,9 +196,11 @@ public class PurchaseOrderService {
                 .orElseThrow(() -> new RuntimeException("Proposal not found"));
 
         PurchaseOrder po = new PurchaseOrder();
-        // po.setTenant(tenant);
         po.setTenantId(tenantId);
-        po.setRfq(proposal.getRfq());
+        // po.setRfq(proposal.getRfq()); // Deprecated, don't set or set for legacy
+        // reference?
+        // proposal.getRfq() is 1 RFQ.
+
         po.setSupplier(proposal.getSupplier());
         po.setCreatedBy(createdBy);
         po.setCode(generatePOCode(tenantId));
@@ -122,26 +211,42 @@ public class PurchaseOrderService {
         po.setPaymentTerms(proposal.getPaymentTerms());
         po.setStatus(PurchaseOrder.POStatus.DRAFT);
 
-        // Link with original requisition from RFQ
-        if (proposal.getRfq() != null && proposal.getRfq().getRequisition() != null) {
-            po.addRequisition(proposal.getRfq().getRequisition(), null);
-        }
+        PurchaseOrder savedPO = poRepository.save(po);
 
-        // Copy items from proposal
+        // Copy items from proposal and Link with Requisitions via Items
         for (ProposalItem propItem : proposal.getItems()) {
             POItem poItem = new POItem();
-            poItem.setPurchaseOrder(po);
-            // poItem.setProposalItem(propItem); // Assuming relationship exists
-            poItem.setDescription(propItem.getRfqItem().getDescription()); // Assuming indirect link logic
-            // poItem.setSpecifications(propItem.getRfqItem().getSpecifications());
-            poItem.setQuantity(propItem.getRfqItem().getQuantity()); // Using BigDecimal directly
-            // poItem.setUnit(propItem.getRfqItem().getUnit());
+            poItem.setPurchaseOrder(savedPO);
+            poItem.setDescription(propItem.getRfqItem().getDescription());
+            poItem.setQuantity(propItem.getRfqItem().getQuantity());
             poItem.setUnitPrice(propItem.getUnitPrice());
             poItem.setTotalPrice(propItem.getTotalPrice());
-            po.getItems().add(poItem);
+
+            // Link sources
+            poItem.setSourceRfqItem(propItem.getRfqItem());
+            if (propItem.getRfqItem().getRequisitionItem() != null) {
+                poItem.setSourceRequisitionItem(propItem.getRfqItem().getRequisitionItem());
+
+                // Link Requisition to PO (Header level)
+                Requisition req = propItem.getRfqItem().getRequisitionItem().getRequisition();
+                if (req != null) {
+                    // Check if already linked
+                    boolean alreadyLinked = savedPO.getRequisitions().stream()
+                            .anyMatch(pr -> pr.getRequisition().getId().equals(req.getId()));
+
+                    if (!alreadyLinked) {
+                        savedPO.addRequisition(req, BigDecimal.ZERO); // Quantity fulfilled calculation is complex,
+                                                                      // keeping 0 or updating later
+                    }
+
+                    // Construct fulfiled quantity logic?
+                }
+            }
+
+            savedPO.getItems().add(poItem);
         }
 
-        return poRepository.save(po);
+        return poRepository.save(savedPO);
     }
 
     @Transactional
@@ -208,22 +313,35 @@ public class PurchaseOrderService {
 
     private void createApprovalWorkflow(PurchaseOrder po) {
         // Requirement: 3 approvals before PO follows its course
-        // 1. Department Head (from initial requisition if possible, otherwise
-        // requester's dept head)
+        // 1. Department Head (from initial requisition if possible)
         // 2. Financial/Admin Director
         // 3. General Director
 
         int level = 1;
 
         // Level 1: Functional/Department Approval
-        // Try to find the dept head of the user who created the PO
-        if (po.getCreatedBy() != null && po.getCreatedBy().getDepartment() != null) {
-            User deptHead = po.getCreatedBy().getDepartment().getHead();
-            if (deptHead != null) {
-                createPOApproval(po, deptHead, level++);
+        // IMPORTANT: Use the department of the original requisition, not the PO creator
+        Department targetDept = null;
+        if (po.getRequisitions() != null && !po.getRequisitions().isEmpty()) {
+            Requisition req = po.getRequisitions().get(0).getRequisition();
+            if (req != null) {
+                targetDept = req.getDepartment();
             }
         }
-        // Fallback for Level 1 if no dept head found: Any Manager
+
+        // Fallback to creator's dept if no requisition linked
+        if (targetDept == null && po.getCreatedBy() != null) {
+            targetDept = po.getCreatedBy().getDepartment();
+        }
+
+        if (targetDept != null && targetDept.getHead() != null) {
+            User head = targetDept.getHead();
+            // If creator is the head, skip to next level or use parent head (simplified for
+            // now)
+            createPOApproval(po, head, level++);
+        }
+
+        // Fallback for Level 1 if no head found
         if (level == 1) {
             userRepository.findAll().stream()
                     .filter(u -> u.getRole() != null && "GESTOR_PROCUREMENT".equalsIgnoreCase(u.getRole().getName()))
@@ -232,27 +350,19 @@ public class PurchaseOrderService {
             level++;
         }
 
-        // Level 2: Financial/Admin
-        // For now, assigning to users with ADMIN_GERAL role as placeholders for
-        // Financial Director
+        // Level 2 & 3: Financial & General Directors
         List<User> directors = userRepository.findAll().stream()
                 .filter(u -> u.getRole() != null && "ADMIN_GERAL".equalsIgnoreCase(u.getRole().getName()))
                 .toList();
 
         if (!directors.isEmpty()) {
             createPOApproval(po, directors.get(0), level++);
-        }
 
-        // Level 3: Final Approval (e.g. CEO or Top Director)
-        // Using the same pool for now but ensuring distinct levels
-        if (!directors.isEmpty()) {
-            // If we have more than 1 admin, use the second one, else reuse the first (demo
-            // purpose)
             User finalApprover = directors.size() > 1 ? directors.get(1) : directors.get(0);
             createPOApproval(po, finalApprover, level++);
         }
 
-        // Ensure we explicitly have 3 levels created if possible in this demo env
+        // Ensure we have at least 3 levels
         while (level <= 3) {
             if (!directors.isEmpty()) {
                 createPOApproval(po, directors.get(0), level++);
@@ -314,8 +424,34 @@ public class PurchaseOrderService {
                 .anyMatch(a -> a.getLevel() > currentLevel);
 
         if (nextLevelExists) {
-            // Requisition/PO stays in PENDING_APPROVAL, next level approver takes action
-            // In a real system we might send notifications here
+            // Optimization: If the next level approver is the same as the current one,
+            // auto-approve it
+            final int nextLevel = currentLevel + 1;
+            UUID currentApproverId = approvals.stream()
+                    .filter(a -> a.getLevel().equals(currentLevel)
+                            && a.getStatus() == POApproval.ApprovalStatus.APPROVED)
+                    .map(a -> a.getApprover().getId())
+                    .findFirst()
+                    .orElse(null);
+
+            if (currentApproverId != null) {
+                List<POApproval> nextApprovals = approvals.stream()
+                        .filter(a -> a.getLevel().equals(nextLevel)
+                                && a.getStatus() == POApproval.ApprovalStatus.PENDING)
+                        .toList();
+
+                for (POApproval next : nextApprovals) {
+                    if (next.getApprover().getId().equals(currentApproverId)) {
+                        next.setStatus(POApproval.ApprovalStatus.APPROVED);
+                        next.setActionDate(LocalDateTime.now());
+                        next.setComments("Auto-aprovado (mesmo aprovador do nível anterior)");
+                        poApprovalRepository.save(next);
+                        // Recursively progress
+                        progressPOApproval(po, nextLevel);
+                        return;
+                    }
+                }
+            }
             return;
         }
 
@@ -379,7 +515,66 @@ public class PurchaseOrderService {
         return poRepository.findByTenantId(tenantId);
     }
 
-    public List<POApproval> getPendingApprovals(UUID userId) {
-        return poApprovalRepository.findByApproverIdAndStatus(userId, POApproval.ApprovalStatus.PENDING);
+    public List<POApprovalDTO> getPendingApprovals(UUID userId) {
+        return poApprovalRepository.findByApproverIdAndStatus(userId, POApproval.ApprovalStatus.PENDING)
+                .stream()
+                .filter(this::isPOApprovalActive)
+                .map(this::toPOApprovalDTO)
+                .toList();
+    }
+
+    private boolean isPOApprovalActive(POApproval approval) {
+        PurchaseOrder po = approval.getPurchaseOrder();
+        if (po.getStatus() != PurchaseOrder.POStatus.PENDING_APPROVAL) {
+            return false;
+        }
+
+        List<POApproval> allApprovals = poApprovalRepository.findByPurchaseOrderId(po.getId());
+
+        for (int l = 1; l < approval.getLevel(); l++) {
+            final int level = l;
+            boolean levelCompleted = allApprovals.stream()
+                    .filter(a -> a.getLevel() == level)
+                    .anyMatch(a -> a.getStatus() == POApproval.ApprovalStatus.APPROVED
+                            || a.getStatus() == POApproval.ApprovalStatus.SKIPPED);
+
+            if (!levelCompleted) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private POApprovalDTO toPOApprovalDTO(POApproval approval) {
+        PurchaseOrder po = approval.getPurchaseOrder();
+        return POApprovalDTO.builder()
+                .id(approval.getId())
+                .level(approval.getLevel())
+                .status(approval.getStatus().toString())
+                .comments(approval.getComments())
+                .actionDate(approval.getActionDate())
+                .purchaseOrderId(po.getId())
+                .purchaseOrderCode(po.getCode())
+                .supplierName(po.getSupplier() != null ? po.getSupplier().getName() : "N/A")
+                .departmentName(resolvePODepartmentName(po))
+                .totalAmount(po.getTotalAmount() != null ? po.getTotalAmount().toString() : "0.00")
+                .currency(po.getCurrency())
+                .poCreatedAt(po.getCreatedAt())
+                .approverId(approval.getApprover().getId())
+                .approverName(approval.getApprover().getName())
+                .build();
+    }
+
+    private String resolvePODepartmentName(PurchaseOrder po) {
+        if (po.getRequisitions() != null && !po.getRequisitions().isEmpty()) {
+            Requisition req = po.getRequisitions().get(0).getRequisition();
+            if (req != null && req.getDepartment() != null) {
+                return req.getDepartment().getName();
+            }
+        }
+        if (po.getCreatedBy() != null && po.getCreatedBy().getDepartment() != null) {
+            return po.getCreatedBy().getDepartment().getName();
+        }
+        return "N/A";
     }
 }

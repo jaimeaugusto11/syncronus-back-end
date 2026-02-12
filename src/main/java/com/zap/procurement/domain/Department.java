@@ -26,7 +26,7 @@ public class Department extends BaseEntity {
     private Department parent;
 
     @JsonIgnore
-    @OneToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "head_id")
     private User head;
 

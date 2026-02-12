@@ -17,6 +17,7 @@ import java.util.UUID;
 @RequestMapping("/budget-lines")
 @CrossOrigin(origins = "*")
 @RequiredArgsConstructor
+@org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
 public class BudgetLineController {
 
     private final BudgetLineRepository budgetLineRepository;
@@ -24,23 +25,33 @@ public class BudgetLineController {
     private final AuditLogService auditLogService;
 
     @GetMapping
-    public ResponseEntity<List<BudgetLine>> getAllBudgets() {
+    public ResponseEntity<List<com.zap.procurement.dto.BudgetLineDTO>> getAllBudgets() {
         UUID tenantId = TenantContext.getCurrentTenant();
-        return ResponseEntity.ok(budgetLineRepository.findByTenantId(tenantId));
+        return ResponseEntity.ok(budgetLineRepository.findByTenantId(tenantId).stream()
+                .map(this::toDTO)
+                .collect(java.util.stream.Collectors.toList()));
     }
 
     @GetMapping("/department/{departmentId}")
-    public ResponseEntity<List<BudgetLine>> getByDepartment(@PathVariable UUID departmentId) {
+    public ResponseEntity<List<com.zap.procurement.dto.BudgetLineDTO>> getByDepartment(
+            @PathVariable UUID departmentId) {
         UUID tenantId = TenantContext.getCurrentTenant();
-        return ResponseEntity.ok(budgetLineRepository.findByTenantIdAndDepartmentId(tenantId, departmentId));
+        return ResponseEntity.ok(budgetLineRepository.findByTenantIdAndDepartmentId(tenantId, departmentId).stream()
+                .map(this::toDTO)
+                .collect(java.util.stream.Collectors.toList()));
     }
 
     @PostMapping
-    public ResponseEntity<BudgetLine> createBudget(@RequestBody BudgetLineDTO dto) {
+    public ResponseEntity<com.zap.procurement.dto.BudgetLineDTO> createBudget(
+            @RequestBody com.zap.procurement.dto.BudgetLineDTO dto) {
         UUID tenantId = TenantContext.getCurrentTenant();
 
         Department dept = departmentRepository.findById(dto.getDepartmentId())
                 .orElseThrow(() -> new RuntimeException("Department not found"));
+
+        if (!dept.getTenantId().equals(tenantId)) {
+            throw new RuntimeException("Unauthorized access to department");
+        }
 
         BudgetLine budget = new BudgetLine();
         budget.setCode(dto.getCode());
@@ -53,11 +64,12 @@ public class BudgetLineController {
 
         BudgetLine saved = budgetLineRepository.save(budget);
         auditLogService.log("BUDGET_LINE", saved.getId(), "CREATE", "Created budget line: " + saved.getDescription());
-        return ResponseEntity.ok(saved);
+        return ResponseEntity.ok(toDTO(saved));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<BudgetLine> updateBudget(@PathVariable UUID id, @RequestBody BudgetLineDTO dto) {
+    public ResponseEntity<com.zap.procurement.dto.BudgetLineDTO> updateBudget(@PathVariable UUID id,
+            @RequestBody com.zap.procurement.dto.BudgetLineDTO dto) {
         UUID tenantId = TenantContext.getCurrentTenant();
         BudgetLine budget = budgetLineRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Budget line not found"));
@@ -69,26 +81,22 @@ public class BudgetLineController {
         if (dto.getDepartmentId() != null) {
             Department dept = departmentRepository.findById(dto.getDepartmentId())
                     .orElseThrow(() -> new RuntimeException("Department not found"));
-
             if (!dept.getTenantId().equals(tenantId)) {
                 throw new RuntimeException("Unauthorized access to department");
             }
             budget.setDepartment(dept);
         }
 
-        String oldValue = "Description: " + budget.getDescription() + ", Amount: " + budget.getTotalAmount()
-                + ", Active: " + budget.isActive();
+        budget.setCode(dto.getCode());
         budget.setDescription(dto.getDescription());
         budget.setTotalAmount(dto.getTotalAmount());
         budget.setEquipmentList(dto.getEquipmentList());
         budget.setActive(dto.getActive() != null ? dto.getActive() : budget.isActive());
 
-        BudgetLine saved = budgetLineRepository.save(budget);
-        String newValue = "Description: " + saved.getDescription() + ", Amount: " + saved.getTotalAmount()
-                + ", Active: " + saved.isActive();
-        auditLogService.log("BUDGET_LINE", saved.getId(), "UPDATE", "Updated budget line: " + saved.getDescription(),
-                oldValue, newValue);
-        return ResponseEntity.ok(saved);
+        BudgetLine updated = budgetLineRepository.save(budget);
+        auditLogService.log("BUDGET_LINE", updated.getId(), "UPDATE",
+                "Updated budget line: " + updated.getDescription());
+        return ResponseEntity.ok(toDTO(updated));
     }
 
     @DeleteMapping("/{id}")
@@ -101,67 +109,25 @@ public class BudgetLineController {
             throw new RuntimeException("Unauthorized access to budget line");
         }
 
-        budgetLineRepository.deleteById(id);
-        auditLogService.log("BUDGET_LINE", id, "DELETE", "Deleted budget line");
+        budgetLineRepository.delete(budget);
+        auditLogService.log("BUDGET_LINE", id, "DELETE", "Deleted budget line: " + budget.getDescription());
         return ResponseEntity.noContent().build();
     }
 
-    // Inner DTO for convenience
-    public static class BudgetLineDTO {
-        private String code;
-        private String description;
-        private java.math.BigDecimal totalAmount;
-        private String equipmentList;
-        private UUID departmentId;
-        private Boolean active;
-
-        // Getters and Setters
-        public String getCode() {
-            return code;
+    private com.zap.procurement.dto.BudgetLineDTO toDTO(BudgetLine budget) {
+        com.zap.procurement.dto.BudgetLineDTO dto = new com.zap.procurement.dto.BudgetLineDTO();
+        dto.setId(budget.getId());
+        dto.setCode(budget.getCode());
+        dto.setDescription(budget.getDescription());
+        dto.setTotalAmount(budget.getTotalAmount());
+        dto.setSpentAmount(budget.getSpentAmount());
+        dto.setRemainingAmount(budget.getRemainingAmount());
+        dto.setEquipmentList(budget.getEquipmentList());
+        dto.setActive(budget.isActive());
+        if (budget.getDepartment() != null) {
+            dto.setDepartmentId(budget.getDepartment().getId());
+            dto.setDepartmentName(budget.getDepartment().getName());
         }
-
-        public void setCode(String code) {
-            this.code = code;
-        }
-
-        public String getDescription() {
-            return description;
-        }
-
-        public void setDescription(String description) {
-            this.description = description;
-        }
-
-        public java.math.BigDecimal getTotalAmount() {
-            return totalAmount;
-        }
-
-        public void setTotalAmount(java.math.BigDecimal totalAmount) {
-            this.totalAmount = totalAmount;
-        }
-
-        public String getEquipmentList() {
-            return equipmentList;
-        }
-
-        public void setEquipmentList(String equipmentList) {
-            this.equipmentList = equipmentList;
-        }
-
-        public UUID getDepartmentId() {
-            return departmentId;
-        }
-
-        public void setDepartmentId(UUID departmentId) {
-            this.departmentId = departmentId;
-        }
-
-        public Boolean getActive() {
-            return active;
-        }
-
-        public void setActive(Boolean active) {
-            this.active = active;
-        }
+        return dto;
     }
 }

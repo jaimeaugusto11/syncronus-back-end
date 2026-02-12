@@ -5,13 +5,16 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "roles")
+@Table(name = "roles", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_roles_name_tenant", columnNames = { "name", "tenant_id" }),
+        @UniqueConstraint(name = "uk_roles_slug_tenant", columnNames = { "slug", "tenant_id" })
+})
 public class Role extends BaseEntity {
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String name;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String slug;
 
     private String description;
