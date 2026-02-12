@@ -56,14 +56,15 @@ public class AnalyticsService {
                 List<RFQ> activeRFQs = rfqRepository.findByTenantIdAndStatus(tenantId, RFQ.RFQStatus.PUBLISHED);
                 dashboard.setActiveRFQs(activeRFQs.size());
 
-                List<PurchaseOrder> activePOs = poRepository.findByTenantId(tenantId).stream()
+                List<PurchaseOrder> allPOs = poRepository.findByTenantId(tenantId);
+                List<PurchaseOrder> activePOs = allPOs.stream()
                                 .filter(po -> po.getStatus() != PurchaseOrder.POStatus.COMPLETED &&
                                                 po.getStatus() != PurchaseOrder.POStatus.CANCELLED)
                                 .collect(Collectors.toList());
                 dashboard.setActivePOs(activePOs.size());
 
                 // Financial metrics
-                BigDecimal totalSpend = poRepository.findByTenantId(tenantId).stream()
+                BigDecimal totalSpend = allPOs.stream()
                                 .filter(po -> po.getStatus() == PurchaseOrder.POStatus.COMPLETED ||
                                                 po.getStatus() == PurchaseOrder.POStatus.SUPPLIER_CONFIRMED)
                                 .map(PurchaseOrder::getTotalAmount)
@@ -87,11 +88,28 @@ public class AnalyticsService {
                                 .count();
                 dashboard.setInvoicesAwaitingMatch((int) invoicesAwaitingMatch);
 
-                // Spend by category (simplified - would need category field in requisition)
-                Map<String, BigDecimal> spendByCategory = new HashMap<>();
-                spendByCategory.put("IT", new BigDecimal("50000"));
-                spendByCategory.put("Facilities", new BigDecimal("30000"));
-                spendByCategory.put("Services", new BigDecimal("20000"));
+                // Spend by department
+                Map<String, BigDecimal> spendByDepartment = allPOs.stream()
+                                .filter(po -> po.getStatus() == PurchaseOrder.POStatus.COMPLETED ||
+                                                po.getStatus() == PurchaseOrder.POStatus.SUPPLIER_CONFIRMED)
+                                .collect(Collectors.groupingBy(
+                                                this::resolvePODepartmentName,
+                                                Collectors.reducing(BigDecimal.ZERO, PurchaseOrder::getTotalAmount,
+                                                                BigDecimal::add)));
+                dashboard.setSpendByDepartment(spendByDepartment);
+
+                // Spend by category
+                Map<String, BigDecimal> spendByCategory = allPOs.stream()
+                                .filter(po -> po.getStatus() == PurchaseOrder.POStatus.COMPLETED ||
+                                                po.getStatus() == PurchaseOrder.POStatus.SUPPLIER_CONFIRMED)
+                                .flatMap(po -> po.getItems().stream())
+                                .collect(Collectors.groupingBy(
+                                                this::resolveCategoryName,
+                                                Collectors.reducing(BigDecimal.ZERO,
+                                                                item -> item.getTotalPrice() != null
+                                                                                ? item.getTotalPrice()
+                                                                                : BigDecimal.ZERO,
+                                                                BigDecimal::add)));
                 dashboard.setSpendByCategory(spendByCategory);
 
                 // Recent activity
@@ -102,6 +120,28 @@ public class AnalyticsService {
                 dashboard.setRequisitionsThisMonth((int) requisitionsThisMonth);
 
                 return dashboard;
+        }
+
+        private String resolvePODepartmentName(PurchaseOrder po) {
+                // Try from linked requisition first
+                if (po.getRequisitions() != null && !po.getRequisitions().isEmpty()) {
+                        Requisition req = po.getRequisitions().get(0).getRequisition();
+                        if (req != null && req.getDepartment() != null) {
+                                return req.getDepartment().getName();
+                        }
+                }
+                // Fallback to creator's department
+                if (po.getCreatedBy() != null && po.getCreatedBy().getDepartment() != null) {
+                        return po.getCreatedBy().getDepartment().getName();
+                }
+                return "Unknown Department";
+        }
+
+        private String resolveCategoryName(com.zap.procurement.domain.POItem item) {
+                if (item.getSourceRequisitionItem() != null && item.getSourceRequisitionItem().getCategory() != null) {
+                        return item.getSourceRequisitionItem().getCategory().getName();
+                }
+                return "Uncategorized";
         }
 
         public List<SupplierPerformanceDTO> getSupplierPerformance(java.util.UUID tenantId) {
@@ -176,16 +216,36 @@ public class AnalyticsService {
                                 .reduce(BigDecimal.ZERO, BigDecimal::add);
                 dto.setTotalSpend(totalSpend);
 
-                // CAPEX vs OPEX (would need budget type in PO or link to requisition)
-                dto.setCapexSpend(totalSpend.multiply(new BigDecimal("0.4"))); // 40% example
-                dto.setOpexSpend(totalSpend.multiply(new BigDecimal("0.6"))); // 60% example
+                // CAPEX vs OPEX logic - simplified
+                BigDecimal capex = pos.stream()
+                                .filter(po -> po.getRequisitions() != null && !po.getRequisitions().isEmpty() &&
+                                                po.getRequisitions().get(0).getRequisition() != null &&
+                                                po.getRequisitions().get(0).getRequisition()
+                                                                .getBudgetType() == Department.BudgetType.CAPEX)
+                                .map(PurchaseOrder::getTotalAmount)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                dto.setCapexSpend(capex);
+                dto.setOpexSpend(totalSpend.subtract(capex));
 
-                // Category breakdown (simplified)
-                dto.setItSpend(totalSpend.multiply(new BigDecimal("0.3")));
-                dto.setFacilitiesSpend(totalSpend.multiply(new BigDecimal("0.25")));
-                dto.setServicesSpend(totalSpend.multiply(new BigDecimal("0.25")));
-                dto.setMaterialsSpend(totalSpend.multiply(new BigDecimal("0.15")));
-                dto.setOtherSpend(totalSpend.multiply(new BigDecimal("0.05")));
+                // Category breakdown
+                Map<String, BigDecimal> spendByCategory = pos.stream()
+                                .flatMap(po -> po.getItems().stream())
+                                .collect(Collectors.groupingBy(
+                                                this::resolveCategoryName,
+                                                Collectors.reducing(BigDecimal.ZERO,
+                                                                item -> item.getTotalPrice() != null
+                                                                                ? item.getTotalPrice()
+                                                                                : BigDecimal.ZERO,
+                                                                BigDecimal::add)));
+                dto.setSpendByCategory(spendByCategory);
+
+                // Department breakdown
+                Map<String, BigDecimal> spendByDepartment = pos.stream()
+                                .collect(Collectors.groupingBy(
+                                                this::resolvePODepartmentName,
+                                                Collectors.reducing(BigDecimal.ZERO, PurchaseOrder::getTotalAmount,
+                                                                BigDecimal::add)));
+                dto.setSpendByDepartment(spendByDepartment);
 
                 return dto;
         }

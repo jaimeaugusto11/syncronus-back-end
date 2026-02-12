@@ -59,12 +59,33 @@ public class RFQController {
         @SuppressWarnings("unchecked")
         List<String> itemIdsStrings = (List<String>) request.get("itemIds");
         List<UUID> itemIds = itemIdsStrings.stream().map(UUID::fromString).toList();
+
+        @SuppressWarnings("unchecked")
+        List<String> supplierIdStrings = request.containsKey("supplierIds")
+                ? (List<String>) request.get("supplierIds")
+                : null;
+        List<UUID> supplierIds = supplierIdStrings != null
+                ? supplierIdStrings.stream().map(UUID::fromString).toList()
+                : null;
         RFQ.RFQType type = RFQ.RFQType.valueOf(request.get("type").toString());
         RFQ.ProcessType processType = request.containsKey("processType")
                 ? RFQ.ProcessType.valueOf(request.get("processType").toString())
                 : RFQ.ProcessType.RFQ;
 
-        RFQ rfq = rfqService.createRFQForCategory(categoryId, itemIds, type, processType);
+        String title = (String) request.get("title");
+        String description = (String) request.get("description");
+        java.time.LocalDate closingDate = request.containsKey("closingDate")
+                ? java.time.LocalDate.parse(request.get("closingDate").toString())
+                : null;
+        Integer technicalWeight = request.containsKey("technicalWeight")
+                ? Integer.parseInt(request.get("technicalWeight").toString())
+                : null;
+        Integer financialWeight = request.containsKey("financialWeight")
+                ? Integer.parseInt(request.get("financialWeight").toString())
+                : null;
+
+        RFQ rfq = rfqService.createRFQForCategory(categoryId, itemIds, type, processType,
+                title, description, closingDate, technicalWeight, financialWeight, supplierIds);
         return ResponseEntity.ok(rfq);
     }
 

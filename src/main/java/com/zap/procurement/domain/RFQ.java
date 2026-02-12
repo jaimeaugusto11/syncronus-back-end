@@ -41,6 +41,12 @@ public class RFQ extends BaseEntity {
     @Column(nullable = false)
     private RFQStatus status = RFQStatus.DRAFT;
 
+    @Column(name = "technical_weight")
+    private Integer technicalWeight = 60;
+
+    @Column(name = "financial_weight")
+    private Integer financialWeight = 40;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private RFQType type = RFQType.PUBLIC;

@@ -59,7 +59,9 @@ public class RFQService {
 
         @Transactional
         public RFQ createRFQForCategory(UUID categoryId, List<UUID> requisitionItemIds, RFQ.RFQType type,
-                        RFQ.ProcessType processType) {
+                        RFQ.ProcessType processType, String title, String description,
+                        java.time.LocalDate closingDate, Integer technicalWeight, Integer financialWeight,
+                        List<UUID> supplierIds) {
                 UUID tenantId = TenantContext.getCurrentTenant();
 
                 List<RequisitionItem> items = requisitionItemRepository.findAllById(requisitionItemIds);
@@ -94,7 +96,19 @@ public class RFQService {
                 rfq.setProcessType(processType != null ? processType : RFQ.ProcessType.RFQ);
                 rfq.setCode(generateRFQCode(tenantId, type, processType));
                 rfq.setIssueDate(java.time.LocalDate.now());
-                rfq.setClosingDate(java.time.LocalDate.now().plusDays(14));
+
+                // Novos campos
+                rfq.setTitle(title != null ? title
+                                : "Processo de Sourcing - " + (rfq.getCategory() != null ? rfq.getCategory().getName()
+                                                : "Sem Categoria"));
+                rfq.setDescription(description);
+                rfq.setClosingDate(closingDate != null ? closingDate : java.time.LocalDate.now().plusDays(14));
+
+                if (technicalWeight != null)
+                        rfq.setTechnicalWeight(technicalWeight);
+                if (financialWeight != null)
+                        rfq.setFinancialWeight(financialWeight);
+
                 rfq.setStatus(RFQ.RFQStatus.DRAFT);
 
                 RFQ savedRfq = rfqRepository.save(rfq);
@@ -112,6 +126,13 @@ public class RFQService {
 
                         reqItem.setStatus(RequisitionItem.RequisitionItemStatus.IN_SOURCING);
                         requisitionItemRepository.save(reqItem);
+                }
+
+                // Invitar fornecedores selecionados manualmente no Wizard
+                if (supplierIds != null) {
+                        for (UUID supplierId : supplierIds) {
+                                inviteSupplier(savedRfq.getId(), supplierId);
+                        }
                 }
 
                 return savedRfq;
@@ -218,8 +239,10 @@ public class RFQService {
 
                 Comparison comparison = new Comparison();
                 comparison.setRfq(rfq);
-                comparison.setTechnicalWeight(technicalWeight != null ? technicalWeight : 60);
-                comparison.setFinancialWeight(financialWeight != null ? financialWeight : 40);
+                comparison.setTechnicalWeight(technicalWeight != null ? technicalWeight
+                                : (rfq.getTechnicalWeight() != null ? rfq.getTechnicalWeight() : 60));
+                comparison.setFinancialWeight(financialWeight != null ? financialWeight
+                                : (rfq.getFinancialWeight() != null ? rfq.getFinancialWeight() : 40));
                 comparison.setStatus(Comparison.ComparisonStatus.DRAFT);
                 // comparison.setTenant(rfq.getTenant()); // Important for BaseEntity
                 comparison.setTenantId(rfq.getTenantId());

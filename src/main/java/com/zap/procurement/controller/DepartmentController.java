@@ -12,7 +12,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/departments")
 @CrossOrigin(origins = "*")
-@org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_USERS') or hasAuthority('ADMIN_ACCESS')")
 public class DepartmentController {
 
     @Autowired
@@ -76,6 +75,7 @@ public class DepartmentController {
     }
 
     @PutMapping("/{id}/head")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
     public ResponseEntity<com.zap.procurement.dto.DepartmentDTO> assignHead(@PathVariable java.util.UUID id,
             @RequestBody java.util.Map<String, String> body) {
         java.util.UUID tenantId = TenantContext.getCurrentTenant();
@@ -109,6 +109,7 @@ public class DepartmentController {
     }
 
     @PostMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
     public ResponseEntity<com.zap.procurement.dto.DepartmentDTO> createDepartment(
             @RequestBody com.zap.procurement.dto.DepartmentDTO dto) {
         java.util.UUID tenantId = TenantContext.getCurrentTenant();
@@ -135,6 +136,7 @@ public class DepartmentController {
     }
 
     @PutMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
     public ResponseEntity<com.zap.procurement.dto.DepartmentDTO> updateDepartment(@PathVariable java.util.UUID id,
             @RequestBody com.zap.procurement.dto.DepartmentDTO dto) {
         return departmentRepository.findById(id)

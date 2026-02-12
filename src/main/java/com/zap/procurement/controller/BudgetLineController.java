@@ -17,7 +17,6 @@ import java.util.UUID;
 @RequestMapping("/budget-lines")
 @CrossOrigin(origins = "*")
 @RequiredArgsConstructor
-@org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
 public class BudgetLineController {
 
     private final BudgetLineRepository budgetLineRepository;
@@ -42,6 +41,7 @@ public class BudgetLineController {
     }
 
     @PostMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
     public ResponseEntity<com.zap.procurement.dto.BudgetLineDTO> createBudget(
             @RequestBody com.zap.procurement.dto.BudgetLineDTO dto) {
         UUID tenantId = TenantContext.getCurrentTenant();
@@ -68,6 +68,7 @@ public class BudgetLineController {
     }
 
     @PutMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
     public ResponseEntity<com.zap.procurement.dto.BudgetLineDTO> updateBudget(@PathVariable UUID id,
             @RequestBody com.zap.procurement.dto.BudgetLineDTO dto) {
         UUID tenantId = TenantContext.getCurrentTenant();
@@ -100,6 +101,7 @@ public class BudgetLineController {
     }
 
     @DeleteMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
     public ResponseEntity<Void> deleteBudget(@PathVariable UUID id) {
         UUID tenantId = TenantContext.getCurrentTenant();
         BudgetLine budget = budgetLineRepository.findById(id)

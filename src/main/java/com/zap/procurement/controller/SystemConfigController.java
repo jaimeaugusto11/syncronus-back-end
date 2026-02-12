@@ -15,7 +15,6 @@ import java.util.UUID;
 @RequestMapping("/configs")
 @CrossOrigin(origins = "*")
 @RequiredArgsConstructor
-@org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
 public class SystemConfigController {
 
     private final SystemConfigRepository systemConfigRepository;
@@ -32,6 +31,7 @@ public class SystemConfigController {
     }
 
     @PostMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
     public ResponseEntity<SystemConfig> saveConfig(@RequestBody com.zap.procurement.dto.ConfigDTO dto) {
         UUID tenantId = TenantContext.getCurrentTenant();
 
@@ -53,6 +53,7 @@ public class SystemConfigController {
     }
 
     @PostMapping("/batch")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
     public ResponseEntity<List<SystemConfig>> saveConfigs(@RequestBody List<com.zap.procurement.dto.ConfigDTO> dtos) {
         UUID tenantId = TenantContext.getCurrentTenant();
         for (com.zap.procurement.dto.ConfigDTO dto : dtos) {

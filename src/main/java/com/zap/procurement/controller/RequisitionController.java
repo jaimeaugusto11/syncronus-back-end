@@ -328,6 +328,17 @@ public class RequisitionController {
             dto.setPreferredSupplierName(item.getPreferredSupplier().getName());
         }
 
+        // Add metadata from Parent Requisition
+        if (item.getRequisition() != null) {
+            dto.setRequisitionCode(item.getRequisition().getCode());
+            if (item.getRequisition().getRequester() != null) {
+                dto.setRequesterName(item.getRequisition().getRequester().getName());
+            }
+            if (item.getRequisition().getDepartment() != null) {
+                dto.setDepartmentName(item.getRequisition().getDepartment().getName());
+            }
+        }
+
         return dto;
     }
 

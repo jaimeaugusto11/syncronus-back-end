@@ -18,4 +18,7 @@ public class RequisitionItemDTO {
     private String categoryName;
     private UUID preferredSupplierId;
     private String preferredSupplierName;
+    private String requisitionCode;
+    private String requesterName;
+    private String departmentName;
 }

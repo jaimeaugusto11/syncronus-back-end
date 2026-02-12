@@ -89,6 +89,13 @@ public class RequisitionService {
                 .orElseThrow(() -> new RuntimeException("Requisition not found"));
         createApprovalWorkflow(requisition);
         requisition.setStatus(Requisition.RequisitionStatus.PENDING_APPROVAL);
+
+        // Propagate status to items
+        if (requisition.getItems() != null) {
+            requisition.getItems()
+                    .forEach(item -> item.setStatus(RequisitionItem.RequisitionItemStatus.PENDING_APPROVAL));
+        }
+
         return requisitionRepository.save(requisition);
     }
 
@@ -250,6 +257,13 @@ public class RequisitionService {
             case "REJECT":
                 approval.setStatus(RequisitionApproval.ApprovalStatus.REJECTED);
                 requisition.setStatus(Requisition.RequisitionStatus.REJECTED);
+
+                // Propagate status to items
+                if (requisition.getItems() != null) {
+                    requisition.getItems()
+                            .forEach(item -> item.setStatus(RequisitionItem.RequisitionItemStatus.CANCELLED));
+                }
+
                 requisitionRepository.save(requisition);
 
                 // Mark ALL other PENDING approvals as SKIPPED
@@ -329,6 +343,11 @@ public class RequisitionService {
 
         if (allLevelsCompleted) {
             requisition.setStatus(Requisition.RequisitionStatus.APPROVED);
+
+            // Propagate status to items - they are now ready for Sourcing!
+            if (requisition.getItems() != null) {
+                requisition.getItems().forEach(item -> item.setStatus(RequisitionItem.RequisitionItemStatus.APPROVED));
+            }
         } else {
             // Set more granular status based on level if using default workflow levels
             if (currentActiveLevel == 1) {

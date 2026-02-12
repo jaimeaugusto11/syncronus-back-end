@@ -13,12 +13,9 @@ public class SpendAnalysisDTO {
     private BigDecimal capexSpend;
     private BigDecimal opexSpend;
 
-    // By category
-    private BigDecimal itSpend;
-    private BigDecimal facilitiesSpend;
-    private BigDecimal servicesSpend;
-    private BigDecimal materialsSpend;
-    private BigDecimal otherSpend;
+    // Dynamic spend breakdown
+    private java.util.Map<String, BigDecimal> spendByCategory;
+    private java.util.Map<String, BigDecimal> spendByDepartment;
 
     // Comparison
     private BigDecimal previousPeriodSpend;

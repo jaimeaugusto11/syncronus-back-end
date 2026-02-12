@@ -15,7 +15,6 @@ import java.util.UUID;
 @RequestMapping("/categories")
 @CrossOrigin(origins = "*")
 @RequiredArgsConstructor
-@org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
 public class CategoryController {
 
     private final CategoryRepository categoryRepository;
@@ -30,6 +29,7 @@ public class CategoryController {
     }
 
     @PostMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
     public ResponseEntity<com.zap.procurement.dto.CategoryDTO> createCategory(
             @RequestBody com.zap.procurement.dto.CategoryDTO dto) {
         UUID tenantId = TenantContext.getCurrentTenant();
@@ -56,6 +56,7 @@ public class CategoryController {
     }
 
     @PutMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
     public ResponseEntity<com.zap.procurement.dto.CategoryDTO> updateCategory(@PathVariable UUID id,
             @RequestBody com.zap.procurement.dto.CategoryDTO dto) {
         UUID tenantId = TenantContext.getCurrentTenant();
@@ -93,6 +94,7 @@ public class CategoryController {
     }
 
     @DeleteMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN_ACCESS')")
     public ResponseEntity<Void> deleteCategory(@PathVariable UUID id) {
         UUID tenantId = TenantContext.getCurrentTenant();
         Category category = categoryRepository.findById(id)
