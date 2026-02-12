@@ -1,0 +1,42 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=zap_procurement
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - JWT_SECRET=ZAP-Procurement-Secret-Key-2024-Very-Long-Secret-For-JWT-Token-Generation
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - zap-network
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=zap_procurement
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - zap-network
+
+networks:
+  zap-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
