@@ -112,8 +112,6 @@
                 <version>3.13.0</version>
                 <configuration>
                     <parameters>true</parameters>
-                    <fork>true</fork>
-                    <executable>${env.USERPROFILE}/.jdks/ms-21.0.10/bin/javac.exe</executable>
                     <annotationProcessorPaths>
                         <path>
                             <groupId>org.projectlombok</groupId>
