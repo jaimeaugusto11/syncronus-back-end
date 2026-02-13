@@ -5,10 +5,10 @@ services:
       - "8080:8080"
     environment:
       - DB_HOST=db
-      - DB_PORT=5432
+      - DB_PORT=3306
       - DB_NAME=zap_procurement
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=postgres
+      - DB_USERNAME=root
+      - DB_PASSWORD=root
       - JWT_SECRET=ZAP-Procurement-Secret-Key-2024-Very-Long-Secret-For-JWT-Token-Generation
     depends_on:
       db:
@@ -17,17 +17,17 @@ services:
       - zap-network
 
   db:
-    image: postgres:15-alpine
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
     environment:
-      - POSTGRES_DB=zap_procurement
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - MYSQL_DATABASE=zap_procurement
+      - MYSQL_ROOT_PASSWORD=root
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,4 +39,4 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:
+  mysql_data:
