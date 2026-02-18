@@ -244,4 +244,61 @@ public class SupplierPortalController {
         // Only Supplier Admin can create users - logic to be added
         return ResponseEntity.ok(user);
     }
+
+    // ── Profile endpoints ──────────────────────────────────────────────────────
+
+    @GetMapping("/me")
+    public ResponseEntity<?> getProfile(@RequestHeader("X-Supplier-User-ID") UUID supplierUserId) {
+        SupplierUser user = supplierUserRepository.findById(supplierUserId)
+                .orElseThrow(() -> new RuntimeException("Supplier User not found"));
+
+        java.util.Map<String, Object> profile = new java.util.LinkedHashMap<>();
+        profile.put("id", user.getId());
+        profile.put("name", user.getName());
+        profile.put("email", user.getEmail());
+        profile.put("role", user.getRole());
+        profile.put("mustChangePassword", user.isMustChangePassword());
+
+        // Supplier company info
+        Supplier supplier = user.getSupplier();
+        if (supplier != null) {
+            java.util.Map<String, Object> company = new java.util.LinkedHashMap<>();
+            company.put("id", supplier.getId());
+            company.put("name", supplier.getName());
+            company.put("code", supplier.getCode());
+            company.put("email", supplier.getEmail());
+            company.put("phone", supplier.getPhone());
+            company.put("address", supplier.getAddress());
+            company.put("taxId", supplier.getTaxId());
+            company.put("status", supplier.getStatus());
+            profile.put("company", company);
+        }
+
+        return ResponseEntity.ok(profile);
+    }
+
+    @PutMapping("/me")
+    public ResponseEntity<?> updateProfile(
+            @RequestHeader("X-Supplier-User-ID") UUID supplierUserId,
+            @RequestBody java.util.Map<String, String> updates) {
+
+        SupplierUser user = supplierUserRepository.findById(supplierUserId)
+                .orElseThrow(() -> new RuntimeException("Supplier User not found"));
+
+        if (updates.containsKey("name") && updates.get("name") != null && !updates.get("name").isBlank()) {
+            user.setName(updates.get("name"));
+        }
+
+        supplierUserRepository.save(user);
+
+        return ResponseEntity.ok(java.util.Map.of("message", "Perfil actualizado com sucesso"));
+    }
+
+    // Alias: /portal/invoices/proforma → same as /portal/proformas
+    @PostMapping("/invoices/proforma")
+    public ResponseEntity<Invoice> submitProformaAlias(
+            @RequestHeader("X-Supplier-User-ID") UUID supplierUserId,
+            @RequestBody Invoice invoice) {
+        return submitProforma(supplierUserId, invoice);
+    }
 }
