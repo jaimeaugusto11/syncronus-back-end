@@ -29,6 +29,7 @@ public class ProposalItem {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "rfq_item_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties("awardedProposalItem")
     private RFQItem rfqItem;
 
     @Column(nullable = false)

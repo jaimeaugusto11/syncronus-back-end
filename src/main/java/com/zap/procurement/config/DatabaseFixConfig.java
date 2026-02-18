@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import java.util.List;
-import java.util.Map;
+
 
 @Configuration
 public class DatabaseFixConfig {

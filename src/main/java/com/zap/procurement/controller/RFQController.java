@@ -96,6 +96,20 @@ public class RFQController {
         return ResponseEntity.ok(rfq);
     }
 
+    @PostMapping("/{id}/advance-comparison")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
+    public ResponseEntity<?> advanceToComparison(@PathVariable UUID id) {
+        rfqService.advanceToComparison(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/advance-technical")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
+    public ResponseEntity<?> advanceToTechnical(@PathVariable UUID id) {
+        rfqService.advanceToTechnicalValidation(id);
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/{id}/proposals")
     @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_PROPOSALS')")
     public ResponseEntity<List<SupplierProposal>> getProposals(@PathVariable UUID id) {

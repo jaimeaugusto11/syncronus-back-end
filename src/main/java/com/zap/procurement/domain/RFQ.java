@@ -56,7 +56,7 @@ public class RFQ extends BaseEntity {
     private ProcessType processType = ProcessType.RFQ;
 
     public enum RFQStatus {
-        DRAFT, OPEN, PUBLISHED, CLOSED, AWARDED, CANCELLED
+        DRAFT, OPEN, PUBLISHED, READY_FOR_COMPARISON, TECHNICAL_VALIDATION, CLOSED, AWARDED, CANCELLED
     }
 
     @OneToMany(mappedBy = "rfq", cascade = CascadeType.ALL, orphanRemoval = true)

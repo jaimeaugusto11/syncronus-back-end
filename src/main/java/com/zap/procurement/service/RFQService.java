@@ -323,7 +323,15 @@ public class RFQService {
                 Comparison comparison = comparisonRepository.findById(comparisonId)
                                 .orElseThrow(() -> new RuntimeException("Comparison not found"));
 
-                // Validate RFQ is not already awarded
+                // Validate RFQ Status - Strict Mode
+                // Must be in TECHNICAL_VALIDATION to award
+                if (comparison.getRfq().getStatus() != RFQ.RFQStatus.TECHNICAL_VALIDATION) {
+                        throw new RuntimeException(
+                                        "A RFQ deve estar em fase de 'Validação Técnica' para ser adjudicada. Status atual: "
+                                                        + comparison.getRfq().getStatus());
+                }
+
+                // Double check if already awarded (redundant but safe)
                 if (comparison.getRfq().getStatus() == RFQ.RFQStatus.AWARDED) {
                         throw new RuntimeException("RFQ has already been awarded");
                 }
@@ -406,6 +414,33 @@ public class RFQService {
         }
 
         @Transactional
+        public void advanceToComparison(UUID rfqId) {
+                RFQ rfq = rfqRepository.findById(rfqId)
+                                .orElseThrow(() -> new RuntimeException("RFQ not found"));
+
+                if (rfq.getStatus() != RFQ.RFQStatus.OPEN) {
+                        throw new RuntimeException("Apenas RFQs 'Abertas' podem avançar para Comparativo.");
+                }
+
+                rfq.setStatus(RFQ.RFQStatus.READY_FOR_COMPARISON);
+                rfqRepository.save(rfq);
+        }
+
+        @Transactional
+        public void advanceToTechnicalValidation(UUID rfqId) {
+                RFQ rfq = rfqRepository.findById(rfqId)
+                                .orElseThrow(() -> new RuntimeException("RFQ not found"));
+
+                if (rfq.getStatus() != RFQ.RFQStatus.READY_FOR_COMPARISON) {
+                        throw new RuntimeException(
+                                        "A RFQ deve estar em 'Comparativo' para avançar para 'Validação Técnica'.");
+                }
+
+                rfq.setStatus(RFQ.RFQStatus.TECHNICAL_VALIDATION);
+                rfqRepository.save(rfq);
+        }
+
+        @Transactional
         public SupplierProposal submitProposal(SupplierProposal proposal) {
                 if (proposal.getRfq() == null || proposal.getRfq().getId() == null) {
                         throw new RuntimeException("Proposal must act on a valid RFQ");
@@ -421,7 +456,20 @@ public class RFQService {
                 proposal.setStatus(SupplierProposal.ProposalStatus.SUBMITTED);
 
                 if (proposal.getItems() != null) {
-                        // Get supplier categories for validation
+                        // Validate RFQ Status
+                        if (rfq.getStatus() != RFQ.RFQStatus.OPEN && rfq.getStatus() != RFQ.RFQStatus.PUBLISHED) {
+                                throw new RuntimeException(
+                                                "RFQ não está aberta para propostas. Status atual: " + rfq.getStatus());
+                        }
+
+                        // Validate Closing Date
+                        if (rfq.getClosingDate() != null && java.time.LocalDate.now().isAfter(rfq.getClosingDate())) {
+                                // Auto-transition logic could trigger here, but for now just block
+                                rfq.setStatus(RFQ.RFQStatus.READY_FOR_COMPARISON);
+                                rfqRepository.save(rfq);
+                                throw new RuntimeException("O prazo para envio de propostas para esta RFQ já expirou.");
+                        }
+
                         List<UUID> supplierCategoryIds = supplierCategoryRepository
                                         .findBySupplierId(proposal.getSupplier().getId())
                                         .stream()
