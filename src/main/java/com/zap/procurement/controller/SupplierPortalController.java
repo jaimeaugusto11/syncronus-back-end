@@ -269,7 +269,7 @@ public class SupplierPortalController {
             company.put("email", supplier.getEmail());
             company.put("phone", supplier.getPhone());
             company.put("address", supplier.getAddress());
-            company.put("taxId", supplier.getTaxId());
+            company.put("taxId", supplier.getNif());
             company.put("status", supplier.getStatus());
             profile.put("company", company);
         }
