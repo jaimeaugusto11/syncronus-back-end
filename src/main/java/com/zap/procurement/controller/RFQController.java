@@ -5,6 +5,7 @@ import com.zap.procurement.domain.*;
 import com.zap.procurement.dto.ProposalComparisonDTO;
 import com.zap.procurement.repository.RFQRepository;
 import com.zap.procurement.service.RFQService;
+import com.zap.procurement.service.ProposalNegotiationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +25,9 @@ public class RFQController {
 
     @Autowired
     private RFQRepository rfqRepository;
+
+    @Autowired
+    private com.zap.procurement.service.ProposalNegotiationService negotiationService;
 
     @GetMapping
     @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_RFQS')")
@@ -209,5 +213,29 @@ public class RFQController {
     public ResponseEntity<ProposalComparisonDTO> getComparativeMap(@PathVariable UUID id) {
         ProposalComparisonDTO comparison = rfqService.getComparativeMap(id);
         return ResponseEntity.ok(comparison);
+    }
+
+    // ── Negotiation endpoints ────────────────────────────────────────────────
+
+    @GetMapping("/proposals/{proposalId}/messages")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_PROPOSALS')")
+    public ResponseEntity<List<ProposalNegotiationMessage>> getProposalMessages(@PathVariable UUID proposalId) {
+        return ResponseEntity.ok(negotiationService.getMessages(proposalId));
+    }
+
+    @PostMapping("/proposals/{proposalId}/messages")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
+    public ResponseEntity<ProposalNegotiationMessage> sendProposalMessage(
+            @PathVariable UUID proposalId,
+            @RequestBody Map<String, String> request) {
+        String content = request.get("content");
+        UUID senderId = UUID.fromString(request.get("senderId"));
+        return ResponseEntity.ok(negotiationService.sendMessage(proposalId, content, senderId, false));
+    }
+
+    @GetMapping("/proposals/{proposalId}/price-history")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_PROPOSALS')")
+    public ResponseEntity<List<ProposalPriceHistory>> getProposalPriceHistory(@PathVariable UUID proposalId) {
+        return ResponseEntity.ok(negotiationService.getPriceHistory(proposalId));
     }
 }

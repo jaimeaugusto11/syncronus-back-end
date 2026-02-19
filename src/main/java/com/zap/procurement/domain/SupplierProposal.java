@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "supplier_proposals")
@@ -71,6 +72,14 @@ public class SupplierProposal extends BaseEntity {
 
     @Column(name = "evaluated_at")
     private LocalDateTime evaluatedAt;
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "proposal", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProposalNegotiationMessage> negotiationMessages = new ArrayList<>();
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "proposal", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProposalPriceHistory> priceHistory = new ArrayList<>();
 
     public enum ProposalStatus {
         DRAFT, SUBMITTED, UNDER_EVALUATION, ACCEPTED, REJECTED, WITHDRAWN

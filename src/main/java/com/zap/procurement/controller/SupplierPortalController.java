@@ -5,10 +5,13 @@ import com.zap.procurement.repository.*;
 import com.zap.procurement.service.RFQService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import com.zap.procurement.service.PurchaseOrderService;
 
@@ -40,6 +43,9 @@ public class SupplierPortalController {
 
     @Autowired
     private SupplierCategoryRepository supplierCategoryRepository;
+
+    @Autowired
+    private com.zap.procurement.service.ProposalNegotiationService negotiationService;
 
     @GetMapping("/rfqs")
     public ResponseEntity<List<RFQ>> getRFQs(@RequestHeader("X-Supplier-User-ID") UUID supplierUserId) {
@@ -295,10 +301,43 @@ public class SupplierPortalController {
     }
 
     // Alias: /portal/invoices/proforma → same as /portal/proformas
-    @PostMapping("/invoices/proforma")
-    public ResponseEntity<Invoice> submitProformaAlias(
+    // ── Negotiation endpoints ────────────────────────────────────────────────
+
+    @GetMapping("/proposals/{proposalId}/messages")
+    public ResponseEntity<List<ProposalNegotiationMessage>> getProposalMessages(@PathVariable UUID proposalId) {
+        return ResponseEntity.ok(negotiationService.getMessages(proposalId));
+    }
+
+    @PostMapping("/proposals/{proposalId}/messages")
+    public ResponseEntity<ProposalNegotiationMessage> sendProposalMessage(
+            @PathVariable UUID proposalId,
             @RequestHeader("X-Supplier-User-ID") UUID supplierUserId,
-            @RequestBody Invoice invoice) {
-        return submitProforma(supplierUserId, invoice);
+            @RequestBody Map<String, String> request) {
+        String content = request.get("content");
+        return ResponseEntity.ok(negotiationService.sendMessage(proposalId, content, supplierUserId, true));
+    }
+
+    @GetMapping("/proposals/{proposalId}/price-history")
+    public ResponseEntity<List<ProposalPriceHistory>> getProposalPriceHistory(@PathVariable UUID proposalId) {
+        return ResponseEntity.ok(negotiationService.getPriceHistory(proposalId));
+    }
+
+    @GetMapping("/proposals/{proposalId}")
+    public ResponseEntity<SupplierProposal> getProposalDetails(@PathVariable @NonNull UUID proposalId) {
+        return ResponseEntity.ok(proposalRepository.findById(proposalId)
+                .orElseThrow(() -> new RuntimeException("Proposta não encontrada")));
+    }
+
+    @PutMapping("/proposals/{proposalId}/price")
+    public ResponseEntity<SupplierProposal> updateProposalPrice(
+            @PathVariable UUID proposalId,
+            @RequestHeader("X-Supplier-User-ID") UUID supplierUserId,
+            @RequestBody Map<String, Object> request) {
+
+        BigDecimal newPrice = new BigDecimal(request.get("price").toString());
+        String reason = (String) request.get("reason");
+
+        return ResponseEntity
+                .ok(negotiationService.updateProposalPrice(proposalId, newPrice, supplierUserId, reason, true));
     }
 }
