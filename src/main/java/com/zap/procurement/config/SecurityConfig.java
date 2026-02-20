@@ -39,12 +39,12 @@ public class SecurityConfig {
                                                 .requestMatchers("/users/init-system").permitAll()
                                                 .requestMatchers("/users/init-system/**").permitAll()
                                                 .requestMatchers("/api/setup/**").permitAll()
-                                                .requestMatchers("/api/users/init-system").permitAll() // Just in case
-                                                                                                       // context path
-                                                                                                       // is included
+                                                .requestMatchers("/api/users/init-system").permitAll()
                                                 .requestMatchers("/api/public/**").permitAll()
-                                                .requestMatchers("/actuator/health/**").permitAll() // Keep health check
-                                                                                                    // open
+                                                .requestMatchers("/actuator/health/**").permitAll()
+                                                // Portal do Fornecedor usa X-Supplier-User-ID, nao JWT
+                                                .requestMatchers("/portal/**").permitAll()
+                                                .requestMatchers("/api/portal/**").permitAll()
                                                 .anyRequest().authenticated())
                                 .addFilterBefore(jwtAuthenticationFilter,
                                                 org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class);

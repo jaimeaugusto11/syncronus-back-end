@@ -107,12 +107,21 @@ public class RBACSeeder implements CommandLineRunner {
                                 createPermission("Gerir Faturas", "MANAGE_INVOICES", "Processar Faturas", "INVOICES",
                                                 tenantId),
 
+                                // Payments
+                                createPermission("Ver Pagamentos", "VIEW_PAYMENTS", "Ver Pagamentos", "PAYMENTS",
+                                                tenantId),
+                                createPermission("Gerir Pagamentos", "MANAGE_PAYMENTS", "Processar Pagamentos",
                                                 "PAYMENTS", tenantId),
                                 
                                 // Contracts
                                 createPermission("Ver Contratos", "VIEW_CONTRACTS", "Ver lista de contratos", "CONTRACTS", tenantId),
                                 createPermission("Gerir Contratos", "MANAGE_CONTRACTS", "Criar/Editar contratos", "CONTRACTS", tenantId),
                                 createPermission("Assinar Contratos", "SIGN_CONTRACT", "Assinar contratos digitalmente", "CONTRACTS", tenantId),
+                                
+                                // Auctions
+                                createPermission("Ver Leilões", "VIEW_AUCTIONS", "Ver leilões em tempo real", "AUCTIONS", tenantId),
+                                createPermission("Gerir Leilões", "MANAGE_AUCTIONS", "Iniciar/Parar leilões", "AUCTIONS", tenantId),
+                                createPermission("Efectuar Lance", "PLACE_BID", "Participar em leilões reversos", "AUCTIONS", tenantId),
 
                                 // Suppliers
                                 createPermission("Ver Fornecedores", "VIEW_SUPPLIERS",
@@ -162,6 +171,8 @@ public class RBACSeeder implements CommandLineRunner {
                 addPerm(procurementPerms, "VIEW_CONTRACTS", tenantId);
                 addPerm(procurementPerms, "MANAGE_CONTRACTS", tenantId);
                 addPerm(procurementPerms, "SIGN_CONTRACT", tenantId);
+                addPerm(procurementPerms, "VIEW_AUCTIONS", tenantId);
+                addPerm(procurementPerms, "MANAGE_AUCTIONS", tenantId);
 
                 Set<Permission> requisitionerPerms = new HashSet<>();
                 addPerm(requisitionerPerms, "VIEW_DASHBOARD", tenantId);

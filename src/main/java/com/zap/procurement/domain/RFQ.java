@@ -68,9 +68,23 @@ public class RFQ extends BaseEntity {
     @Column(name = "process_type", nullable = false)
     private ProcessType processType = ProcessType.RFQ;
 
+    // Auction Fields
+    @Column(name = "starting_price")
+    private BigDecimal startingPrice;
+
+    @Column(name = "min_increment")
+    private BigDecimal minIncrement;
+
+    @Column(name = "auction_start_time")
+    private java.time.LocalDateTime auctionStartTime;
+
+    @Column(name = "auction_end_time")
+    private java.time.LocalDateTime auctionEndTime;
+
     public enum RFQStatus {
         DRAFT, OPEN, PUBLISHED, READY_COMPARE, @Deprecated
-        READY_FOR_COMPARISON, TECHNICAL_VALIDATION, PENDING_BAFO, BAFO_OPEN, CLOSED, PARTIALLY_AWARDED, AWARDED,
+        READY_FOR_COMPARISON, TECHNICAL_VALIDATION, PENDING_BAFO, BAFO_OPEN, AUCTION_IN_PROGRESS, CLOSED,
+        PARTIALLY_AWARDED, AWARDED,
         CANCELLED
     }
 
@@ -85,7 +99,7 @@ public class RFQ extends BaseEntity {
     }
 
     public enum ProcessType {
-        RFQ, RFP
+        RFQ, RFP, REVERSE_AUCTION
     }
 
     // Manual Getters and Setters
