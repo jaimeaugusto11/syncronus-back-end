@@ -107,11 +107,12 @@ public class RBACSeeder implements CommandLineRunner {
                                 createPermission("Gerir Faturas", "MANAGE_INVOICES", "Processar Faturas", "INVOICES",
                                                 tenantId),
 
-                                // Payments
-                                createPermission("Ver Pagamentos", "VIEW_PAYMENTS", "Ver Pagamentos", "PAYMENTS",
-                                                tenantId),
-                                createPermission("Gerir Pagamentos", "MANAGE_PAYMENTS", "Processar Pagamentos",
                                                 "PAYMENTS", tenantId),
+                                
+                                // Contracts
+                                createPermission("Ver Contratos", "VIEW_CONTRACTS", "Ver lista de contratos", "CONTRACTS", tenantId),
+                                createPermission("Gerir Contratos", "MANAGE_CONTRACTS", "Criar/Editar contratos", "CONTRACTS", tenantId),
+                                createPermission("Assinar Contratos", "SIGN_CONTRACT", "Assinar contratos digitalmente", "CONTRACTS", tenantId),
 
                                 // Suppliers
                                 createPermission("Ver Fornecedores", "VIEW_SUPPLIERS",
@@ -157,8 +158,10 @@ public class RBACSeeder implements CommandLineRunner {
                 addPerm(procurementPerms, "CREATE_PO", tenantId);
                 addPerm(procurementPerms, "MANAGE_POS", tenantId);
                 addPerm(procurementPerms, "APPROVE_PO", tenantId);
-                addPerm(procurementPerms, "VIEW_SUPPLIERS", tenantId);
                 addPerm(procurementPerms, "MANAGE_SUPPLIERS", tenantId);
+                addPerm(procurementPerms, "VIEW_CONTRACTS", tenantId);
+                addPerm(procurementPerms, "MANAGE_CONTRACTS", tenantId);
+                addPerm(procurementPerms, "SIGN_CONTRACT", tenantId);
 
                 Set<Permission> requisitionerPerms = new HashSet<>();
                 addPerm(requisitionerPerms, "VIEW_DASHBOARD", tenantId);
