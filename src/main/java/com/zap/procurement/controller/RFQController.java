@@ -146,6 +146,13 @@ public class RFQController {
         return ResponseEntity.ok(rfq);
     }
 
+    @PostMapping("/{id}/close-bafo")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
+    public ResponseEntity<RFQ> closeBAFO(@PathVariable UUID id) {
+        RFQ rfq = rfqService.closeBAFO(id);
+        return ResponseEntity.ok(rfq);
+    }
+
     @GetMapping("/{id}/proposals")
     @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_PROPOSALS')")
     public ResponseEntity<List<SupplierProposal>> getProposals(@PathVariable UUID id) {

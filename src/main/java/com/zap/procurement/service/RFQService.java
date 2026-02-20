@@ -610,6 +610,19 @@ public class RFQService {
         }
 
         @Transactional
+        public RFQ closeBAFO(UUID rfqId) {
+                RFQ rfq = rfqRepository.findById(rfqId)
+                                .orElseThrow(() -> new RuntimeException("RFQ not found"));
+
+                if (rfq.getStatus() != RFQ.RFQStatus.BAFO_OPEN) {
+                        throw new RuntimeException("RFQ n\u00e3o est\u00e1 em fase BAFO_OPEN.");
+                }
+
+                rfq.setStatus(RFQ.RFQStatus.READY_COMPARE);
+                return rfqRepository.save(rfq);
+        }
+
+        @Transactional
         public RFQSupplier inviteSupplier(UUID rfqId, UUID supplierId) {
                 RFQ rfq = rfqRepository.findById(rfqId)
                                 .orElseThrow(() -> new RuntimeException("RFQ not found"));
