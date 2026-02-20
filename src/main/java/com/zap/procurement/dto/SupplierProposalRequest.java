@@ -18,6 +18,7 @@ public class SupplierProposalRequest {
     private String documentUrl;
     private String proformaUrl;
     private List<ProposalItemRequest> items;
+    private List<QuestionResponseRequest> questions;
 
     @Data
     public static class ProposalItemRequest {
@@ -27,5 +28,11 @@ public class SupplierProposalRequest {
         private BigDecimal totalPrice;
         private String description;
         private String comments;
+    }
+
+    @Data
+    public static class QuestionResponseRequest {
+        private UUID questionId;
+        private String response;
     }
 }

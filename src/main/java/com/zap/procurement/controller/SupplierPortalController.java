@@ -50,6 +50,12 @@ public class SupplierPortalController {
     @Autowired
     private com.zap.procurement.service.ProposalNegotiationService negotiationService;
 
+    @Autowired
+    private RFQQuestionRepository questionRepository;
+
+    @Autowired
+    private RFQQuestionResponseRepository questionResponseRepository;
+
     @GetMapping("/rfqs")
     public ResponseEntity<List<RFQ>> getRFQs(@RequestHeader("X-Supplier-User-ID") @NonNull UUID supplierUserId) {
         java.util.Objects.requireNonNull(supplierUserId, "supplierUserId is required");
@@ -204,6 +210,22 @@ public class SupplierPortalController {
         }
 
         SupplierProposal saved = rfqService.submitProposal(proposal);
+
+        // Map and save Question Responses
+        if (request.getQuestions() != null) {
+            for (com.zap.procurement.dto.SupplierProposalRequest.QuestionResponseRequest qReq : request
+                    .getQuestions()) {
+                RFQQuestion question = questionRepository.findById(qReq.getQuestionId())
+                        .orElseThrow(() -> new RuntimeException("Question not found: " + qReq.getQuestionId()));
+
+                RFQQuestionResponse qResponse = new RFQQuestionResponse();
+                qResponse.setProposal(saved);
+                qResponse.setQuestion(question);
+                qResponse.setResponseText(qReq.getResponse());
+                // Score is initially null, will be set during evaluation
+                questionResponseRepository.save(qResponse);
+            }
+        }
 
         // Record initial price history
         negotiationService.recordPriceHistory(saved, java.math.BigDecimal.ZERO, saved.getTotalAmount(), supplierUserId,
