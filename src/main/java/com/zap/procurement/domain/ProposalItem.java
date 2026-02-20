@@ -15,6 +15,9 @@ import java.util.UUID;
 @Data
 public class ProposalItem {
 
+    public ProposalItem() {
+    }
+
     @Id
     @GeneratedValue
     @UuidGenerator

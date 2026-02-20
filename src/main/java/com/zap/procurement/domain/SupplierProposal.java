@@ -17,6 +17,10 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 @EqualsAndHashCode(callSuper = true)
 public class SupplierProposal extends BaseEntity {
 
+    public SupplierProposal() {
+        super();
+    }
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "rfq_id", nullable = false)
     private RFQ rfq;

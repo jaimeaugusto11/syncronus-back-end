@@ -24,6 +24,11 @@ public class ProposalNegotiationMessage extends BaseEntity {
     @Column(name = "sender_name")
     private String senderName;
 
+    @com.fasterxml.jackson.annotation.JsonProperty("isFromSupplier")
     @Column(name = "is_from_supplier", nullable = false)
     private boolean isFromSupplier;
+
+    public ProposalNegotiationMessage() {
+        super();
+    }
 }

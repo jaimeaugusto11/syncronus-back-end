@@ -27,7 +27,7 @@ public class RFQController {
     private RFQRepository rfqRepository;
 
     @Autowired
-    private com.zap.procurement.service.ProposalNegotiationService negotiationService;
+    private ProposalNegotiationService negotiationService;
 
     @GetMapping
     @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_RFQS')")

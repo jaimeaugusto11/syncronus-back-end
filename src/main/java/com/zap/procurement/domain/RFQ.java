@@ -14,6 +14,10 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 public class RFQ extends BaseEntity {
 
+    public RFQ() {
+        super();
+    }
+
     @Column(nullable = false, unique = true)
     private String code;
 

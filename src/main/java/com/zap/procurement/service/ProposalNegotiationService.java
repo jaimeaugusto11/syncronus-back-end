@@ -1,12 +1,18 @@
 package com.zap.procurement.service;
 
 import com.zap.procurement.domain.*;
-import com.zap.procurement.repository.*;
+import com.zap.procurement.domain.*;
+import com.zap.procurement.repository.ProposalNegotiationMessageRepository;
+import com.zap.procurement.repository.ProposalPriceHistoryRepository;
+import com.zap.procurement.repository.SupplierProposalRepository;
+import com.zap.procurement.repository.SupplierUserRepository;
+import com.zap.procurement.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
 
@@ -67,19 +73,12 @@ public class ProposalNegotiationService {
     }
 
     @Transactional
-    public SupplierProposal updateProposalPrice(UUID proposalId, BigDecimal newPrice, UUID changedById, String reason,
-            boolean isFromSupplier) {
-        if (proposalId == null)
-            throw new IllegalArgumentException("Proposal ID cannot be null");
-        SupplierProposal proposal = proposalRepository.findById(proposalId)
-                .orElseThrow(() -> new RuntimeException("Proposta não encontrada"));
-
-        BigDecimal oldPrice = proposal.getTotalAmount();
-        proposal.setTotalAmount(newPrice);
-
+    public void recordPriceHistory(SupplierProposal proposal, BigDecimal oldPrice, BigDecimal newPrice,
+            UUID changedById,
+            String reason, boolean isFromSupplier) {
         ProposalPriceHistory history = new ProposalPriceHistory();
         history.setProposal(proposal);
-        history.setOldPrice(oldPrice);
+        history.setOldPrice(oldPrice != null ? oldPrice : BigDecimal.ZERO);
         history.setNewPrice(newPrice);
         history.setCurrency(proposal.getCurrency());
         history.setChangedById(changedById);
@@ -97,6 +96,45 @@ public class ProposalNegotiationService {
         }
 
         priceHistoryRepository.save(history);
+    }
+
+    @Transactional
+    public SupplierProposal updateProposalPrice(UUID proposalId, BigDecimal newPrice, UUID changedById, String reason,
+            boolean isFromSupplier) {
+        if (proposalId == null)
+            throw new IllegalArgumentException("Proposal ID cannot be null");
+        SupplierProposal proposal = proposalRepository.findById(proposalId)
+                .orElseThrow(() -> new RuntimeException("Proposta não encontrada"));
+
+        BigDecimal oldPrice = proposal.getTotalAmount();
+        proposal.setTotalAmount(newPrice);
+
+        // Maintain consistency with items
+        if (proposal.getItems() != null && !proposal.getItems().isEmpty()) {
+            if (proposal.getItems().size() == 1) {
+                ProposalItem item = proposal.getItems().get(0);
+                item.setTotalPrice(newPrice);
+                if (item.getQuantity() != null && item.getQuantity().compareTo(BigDecimal.ZERO) > 0) {
+                    item.setUnitPrice(newPrice.divide(item.getQuantity(), 4, RoundingMode.HALF_UP));
+                } else {
+                    item.setUnitPrice(newPrice);
+                }
+            } else if (oldPrice != null && oldPrice.compareTo(BigDecimal.ZERO) > 0) {
+                // Proportional update for multiple items
+                BigDecimal ratio = newPrice.divide(oldPrice, 10, RoundingMode.HALF_UP);
+                for (ProposalItem item : proposal.getItems()) {
+                    if (item.getTotalPrice() != null) {
+                        item.setTotalPrice(item.getTotalPrice().multiply(ratio).setScale(4, RoundingMode.HALF_UP));
+                        if (item.getQuantity() != null && item.getQuantity().compareTo(BigDecimal.ZERO) > 0) {
+                            item.setUnitPrice(item.getTotalPrice().divide(item.getQuantity(), 4, RoundingMode.HALF_UP));
+                        }
+                    }
+                }
+            }
+        }
+
+        recordPriceHistory(proposal, oldPrice, newPrice, changedById, reason, isFromSupplier);
+
         return proposalRepository.save(proposal);
     }
 }

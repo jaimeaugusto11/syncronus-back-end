@@ -12,6 +12,10 @@ import java.math.BigDecimal;
 @EqualsAndHashCode(callSuper = true)
 public class RFQItem extends BaseEntity {
 
+    public RFQItem() {
+        super();
+    }
+
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "rfq_id", nullable = false)

@@ -42,17 +42,23 @@ public class SupplierPortalController {
     private PurchaseOrderService purchaseOrderService;
 
     @Autowired
+    private RFQItemRepository rfqItemRepository;
+
+    @Autowired
     private SupplierCategoryRepository supplierCategoryRepository;
 
     @Autowired
     private com.zap.procurement.service.ProposalNegotiationService negotiationService;
 
     @GetMapping("/rfqs")
-    public ResponseEntity<List<RFQ>> getRFQs(@RequestHeader("X-Supplier-User-ID") UUID supplierUserId) {
+    public ResponseEntity<List<RFQ>> getRFQs(@RequestHeader("X-Supplier-User-ID") @NonNull UUID supplierUserId) {
+        java.util.Objects.requireNonNull(supplierUserId, "supplierUserId is required");
         SupplierUser user = supplierUserRepository.findById(supplierUserId)
                 .orElseThrow(() -> new RuntimeException("Supplier User not found"));
 
-        // Only return RFQs where this supplier was invited and not removed
+        if (user.getSupplier() == null) {
+            throw new RuntimeException("Fornecedor não associado ao utilizador");
+        }
         List<RFQSupplier> invited = rfqService.getInvitedRFQs(user.getSupplier().getId());
         // Get supplier categories
         List<UUID> supplierCategoryIds = supplierCategoryRepository.findBySupplierId(user.getSupplier().getId())
@@ -149,16 +155,60 @@ public class SupplierPortalController {
     @PostMapping("/proposals")
     public ResponseEntity<SupplierProposal> submitProposal(
             @RequestHeader("X-Supplier-User-ID") UUID supplierUserId,
-            @RequestBody SupplierProposal proposal) {
+            @RequestBody com.zap.procurement.dto.SupplierProposalRequest request) {
 
-        // Defensive: Set supplier from the authenticated user if missing or wrong
         SupplierUser user = supplierUserRepository.findById(supplierUserId)
                 .orElseThrow(() -> new RuntimeException("Supplier User not found"));
 
-        // Always force the correct supplier from the authenticated user context
+        SupplierProposal proposal = new SupplierProposal();
         proposal.setSupplier(user.getSupplier());
 
+        // Map fields from DTO
+        if (request.getRfqId() == null) {
+            throw new RuntimeException("RFQ ID is required");
+        }
+
+        // Use reference to avoid lazy loading issues if just setting ID
+        RFQ rfq = rfqRepository.findById(request.getRfqId())
+                .orElseThrow(() -> new RuntimeException("RFQ not found"));
+        proposal.setRfq(rfq);
+
+        proposal.setTotalAmount(request.getTotalAmount());
+        proposal.setCurrency(request.getCurrency());
+        proposal.setDeliveryDate(request.getDeliveryDate());
+        proposal.setPaymentTerms(request.getPaymentTerms());
+        proposal.setNotes(request.getNotes());
+        proposal.setProposalNumber(request.getProposalNumber());
+        proposal.setDocumentUrl(request.getDocumentUrl());
+        proposal.setProformaUrl(request.getProformaUrl());
+        proposal.setStatus(SupplierProposal.ProposalStatus.SUBMITTED);
+
+        // Map items
+        if (request.getItems() != null) {
+            List<ProposalItem> items = request.getItems().stream().map(itemDto -> {
+                ProposalItem item = new ProposalItem();
+                item.setProposal(proposal);
+
+                RFQItem rfqItem = rfqItemRepository.findById(itemDto.getRfqItemId())
+                        .orElseThrow(() -> new RuntimeException("RFQ Item not found: " + itemDto.getRfqItemId()));
+                item.setRfqItem(rfqItem);
+
+                item.setQuantity(new java.math.BigDecimal(itemDto.getQuantity()));
+                item.setUnitPrice(itemDto.getUnitPrice());
+                item.setTotalPrice(itemDto.getTotalPrice()); // Consider calculating this on backend too
+                item.setDescription(itemDto.getDescription());
+                item.setComments(itemDto.getComments());
+                return item;
+            }).collect(java.util.stream.Collectors.toList());
+            proposal.setItems(items);
+        }
+
         SupplierProposal saved = rfqService.submitProposal(proposal);
+
+        // Record initial price history
+        negotiationService.recordPriceHistory(saved, java.math.BigDecimal.ZERO, saved.getTotalAmount(), supplierUserId,
+                "Preço Inicial", true);
+
         return ResponseEntity.ok(saved);
     }
 
@@ -199,6 +249,24 @@ public class SupplierPortalController {
         }
 
         return ResponseEntity.ok(rfq);
+    }
+
+    @GetMapping("/rfqs/{rfqId}/my-proposal")
+    public ResponseEntity<SupplierProposal> getMyProposalForRFQ(
+            @PathVariable UUID rfqId,
+            @RequestHeader("X-Supplier-User-ID") UUID supplierUserId) {
+
+        java.util.Objects.requireNonNull(supplierUserId, "supplierUserId is required");
+        SupplierUser user = supplierUserRepository.findById(supplierUserId)
+                .orElseThrow(() -> new RuntimeException("Supplier User not found"));
+
+        if (user.getSupplier() == null) {
+            throw new RuntimeException("Fornecedor não associado ao utilizador");
+        }
+
+        return proposalRepository.findBySupplierIdAndRfqId(user.getSupplier().getId(), rfqId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/purchase-orders/{id}/confirm")
