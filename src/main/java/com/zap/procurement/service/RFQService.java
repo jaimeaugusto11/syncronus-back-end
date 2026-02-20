@@ -62,6 +62,12 @@ public class RFQService {
         @Autowired
         private POItemRepository poItemRepository;
 
+        @Autowired
+        private RFQQuestionRepository questionRepository;
+
+        @Autowired
+        private RFQQuestionResponseRepository questionResponseRepository;
+
         @Transactional
         public RFQ createRFQForCategory(UUID categoryId, List<UUID> requisitionItemIds, RFQ.RFQType type,
                         RFQ.ProcessType processType, String title, String description,
@@ -540,15 +546,67 @@ public class RFQService {
         }
 
         @Transactional
-        public Comparison evaluateProposal(UUID proposalId, BigDecimal technicalScore, String notes) {
+        public SupplierProposal evaluateProposal(UUID proposalId, BigDecimal technicalScore, String notes) {
                 SupplierProposal proposal = proposalRepository.findById(proposalId)
                                 .orElseThrow(() -> new RuntimeException("Proposal not found"));
 
-                proposal.setTechnicalScore(technicalScore);
-                proposal.setEvaluationNotes(notes);
-                proposalRepository.save(proposal);
+                if (technicalScore != null) {
+                        proposal.setTechnicalScore(technicalScore);
+                } else {
+                        // Calculate from questionnaires
+                        proposal.setTechnicalScore(calculateTechnicalScoreFromQuestions(proposalId));
+                }
 
-                return null; // Comparison not strictly needed to return here
+                proposal.setEvaluationNotes(notes);
+                proposal.setEvaluatedAt(LocalDateTime.now());
+
+                // Trigger final score calculation
+                RFQ rfq = proposal.getRfq();
+                calculateFinalScore(proposal, rfq.getTechnicalWeight(), rfq.getFinancialWeight());
+
+                return proposalRepository.save(proposal);
+        }
+
+        public BigDecimal calculateTechnicalScoreFromQuestions(UUID proposalId) {
+                SupplierProposal proposal = proposalRepository.findById(proposalId)
+                                .orElseThrow(() -> new RuntimeException("Proposal not found"));
+
+                List<RFQQuestionResponse> responses = questionResponseRepository.findByProposalId(proposalId);
+                if (responses.isEmpty())
+                        return BigDecimal.ZERO;
+
+                BigDecimal totalWeightedScore = BigDecimal.ZERO;
+                int totalWeight = 0;
+
+                for (RFQQuestionResponse response : responses) {
+                        if (response.getScore() != null) {
+                                BigDecimal weight = BigDecimal.valueOf(response.getQuestion().getWeight());
+                                totalWeightedScore = totalWeightedScore.add(response.getScore().multiply(weight));
+                                totalWeight += response.getQuestion().getWeight();
+                        }
+                }
+
+                if (totalWeight == 0)
+                        return BigDecimal.ZERO;
+
+                // Normalize to 0-100 or 0-10 based on system standard
+                return totalWeightedScore.divide(BigDecimal.valueOf(totalWeight), 2, java.math.RoundingMode.HALF_UP);
+        }
+
+        @Transactional
+        public RFQ requestBAFO(UUID rfqId, List<UUID> supplierIds) {
+                RFQ rfq = rfqRepository.findById(rfqId)
+                                .orElseThrow(() -> new RuntimeException("RFQ not found"));
+
+                if (rfq.getStatus() != RFQ.RFQStatus.READY_COMPARE
+                                && rfq.getStatus() != RFQ.RFQStatus.TECHNICAL_VALIDATION) {
+                        throw new RuntimeException(
+                                        "RFQ deve estar em Comparativo ou Validação Técnica para solicitar BAFO.");
+                }
+
+                rfq.setStatus(RFQ.RFQStatus.BAFO_OPEN);
+                // In a real system, we'd notify suppliers here
+                return rfqRepository.save(rfq);
         }
 
         @Transactional

@@ -64,4 +64,77 @@ public class RequisitionItem extends BaseEntity {
         COMPLETED,
         CANCELLED
     }
+
+    // Manual Getters and Setters
+    public Requisition getRequisition() {
+        return requisition;
+    }
+
+    public void setRequisition(Requisition requisition) {
+        this.requisition = requisition;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public BigDecimal getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(BigDecimal quantity) {
+        this.quantity = quantity;
+    }
+
+    public String getUnit() {
+        return unit;
+    }
+
+    public void setUnit(String unit) {
+        this.unit = unit;
+    }
+
+    public BigDecimal getEstimatedPrice() {
+        return estimatedPrice;
+    }
+
+    public void setEstimatedPrice(BigDecimal estimatedPrice) {
+        this.estimatedPrice = estimatedPrice;
+    }
+
+    public BigDecimal getTotalPrice() {
+        return totalPrice;
+    }
+
+    public void setTotalPrice(BigDecimal totalPrice) {
+        this.totalPrice = totalPrice;
+    }
+
+    public Category getCategory() {
+        return category;
+    }
+
+    public void setCategory(Category category) {
+        this.category = category;
+    }
+
+    public Supplier getPreferredSupplier() {
+        return preferredSupplier;
+    }
+
+    public void setPreferredSupplier(Supplier preferredSupplier) {
+        this.preferredSupplier = preferredSupplier;
+    }
+
+    public RequisitionItemStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(RequisitionItemStatus status) {
+        this.status = status;
+    }
 }

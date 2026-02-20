@@ -44,4 +44,69 @@ public class Department extends BaseEntity {
     public enum BudgetType {
         CAPEX, OPEX
     }
+
+    // Manual Getters and Setters
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public Department getParent() {
+        return parent;
+    }
+
+    public void setParent(Department parent) {
+        this.parent = parent;
+    }
+
+    public User getHead() {
+        return head;
+    }
+
+    public void setHead(User head) {
+        this.head = head;
+    }
+
+    public String getCostCenter() {
+        return costCenter;
+    }
+
+    public void setCostCenter(String costCenter) {
+        this.costCenter = costCenter;
+    }
+
+    public BigDecimal getBudget() {
+        return budget;
+    }
+
+    public void setBudget(BigDecimal budget) {
+        this.budget = budget;
+    }
+
+    public BudgetType getBudgetType() {
+        return budgetType;
+    }
+
+    public void setBudgetType(BudgetType budgetType) {
+        this.budgetType = budgetType;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
+    }
 }

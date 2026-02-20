@@ -93,6 +93,26 @@ public class RFQController {
 
         RFQ rfq = rfqService.createRFQForCategory(categoryId, itemIds, type, processType,
                 title, description, closingDate, technicalWeight, financialWeight, supplierIds);
+
+        // Handle Questions if provided
+        if (request.containsKey("questions")) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> questionsData = (List<Map<String, Object>>) request.get("questions");
+            for (Map<String, Object> qData : questionsData) {
+                RFQQuestion question = new RFQQuestion();
+                question.setRfq(rfq);
+                question.setText((String) qData.get("text"));
+                question.setType(RFQQuestion.QuestionType.valueOf((String) qData.get("type")));
+                question.setWeight((Integer) qData.get("weight"));
+                question.setOptions((String) qData.get("options"));
+                question.setRequired(qData.get("required") == null || (Boolean) qData.get("required"));
+                // We'd need to save these, but cascading in RFQ should handle it if added to
+                // the list
+                rfq.getQuestions().add(question);
+            }
+            rfqRepository.save(rfq); // Re-save with questions
+        }
+
         return ResponseEntity.ok(rfq);
     }
 
@@ -115,6 +135,15 @@ public class RFQController {
     public ResponseEntity<?> advanceToTechnical(@PathVariable UUID id) {
         rfqService.advanceToTechnicalValidation(id);
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/request-bafo")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
+    public ResponseEntity<RFQ> requestBAFO(
+            @PathVariable UUID id,
+            @RequestBody(required = false) List<UUID> supplierIds) {
+        RFQ rfq = rfqService.requestBAFO(id, supplierIds);
+        return ResponseEntity.ok(rfq);
     }
 
     @GetMapping("/{id}/proposals")
@@ -162,11 +191,13 @@ public class RFQController {
     public ResponseEntity<?> evaluateProposal(
             @PathVariable UUID id,
             @RequestBody Map<String, Object> evaluation) {
-        BigDecimal technicalScore = new BigDecimal(evaluation.get("technicalScore").toString());
+        BigDecimal technicalScore = evaluation.get("technicalScore") != null
+                ? new BigDecimal(evaluation.get("technicalScore").toString())
+                : null;
         String notes = (String) evaluation.get("notes");
 
-        rfqService.evaluateProposal(id, technicalScore, notes);
-        return ResponseEntity.ok().build();
+        SupplierProposal proposal = rfqService.evaluateProposal(id, technicalScore, notes);
+        return ResponseEntity.ok(proposal);
     }
 
     @PostMapping("/comparisons")

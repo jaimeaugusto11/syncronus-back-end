@@ -42,6 +42,7 @@ public class SecurityConfig {
                                                 .requestMatchers("/api/users/init-system").permitAll() // Just in case
                                                                                                        // context path
                                                                                                        // is included
+                                                .requestMatchers("/api/public/**").permitAll()
                                                 .requestMatchers("/actuator/health/**").permitAll() // Keep health check
                                                                                                     // open
                                                 .anyRequest().authenticated())

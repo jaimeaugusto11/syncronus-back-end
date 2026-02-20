@@ -70,11 +70,15 @@ public class RFQ extends BaseEntity {
 
     public enum RFQStatus {
         DRAFT, OPEN, PUBLISHED, READY_COMPARE, @Deprecated
-        READY_FOR_COMPARISON, TECHNICAL_VALIDATION, CLOSED, PARTIALLY_AWARDED, AWARDED, CANCELLED
+        READY_FOR_COMPARISON, TECHNICAL_VALIDATION, PENDING_BAFO, BAFO_OPEN, CLOSED, PARTIALLY_AWARDED, AWARDED,
+        CANCELLED
     }
 
     @OneToMany(mappedBy = "rfq", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RFQItem> items = new ArrayList<>();
+
+    @OneToMany(mappedBy = "rfq", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<RFQQuestion> questions = new ArrayList<>();
 
     public enum RFQType {
         PUBLIC, PRIVATE, CLOSED
@@ -82,5 +86,126 @@ public class RFQ extends BaseEntity {
 
     public enum ProcessType {
         RFQ, RFP
+    }
+
+    // Manual Getters and Setters
+    public String getCode() {
+        return code;
+    }
+
+    public void setCode(String code) {
+        this.code = code;
+    }
+
+    public Requisition getRequisition() {
+        return requisition;
+    }
+
+    public void setRequisition(Requisition requisition) {
+        this.requisition = requisition;
+    }
+
+    public Category getCategory() {
+        return category;
+    }
+
+    public void setCategory(Category category) {
+        this.category = category;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public LocalDate getIssueDate() {
+        return issueDate;
+    }
+
+    public void setIssueDate(LocalDate issueDate) {
+        this.issueDate = issueDate;
+    }
+
+    public LocalDate getClosingDate() {
+        return closingDate;
+    }
+
+    public void setClosingDate(LocalDate closingDate) {
+        this.closingDate = closingDate;
+    }
+
+    public RFQStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(RFQStatus status) {
+        this.status = status;
+    }
+
+    public Integer getTechnicalWeight() {
+        return technicalWeight;
+    }
+
+    public void setTechnicalWeight(Integer technicalWeight) {
+        this.technicalWeight = technicalWeight;
+    }
+
+    public Integer getFinancialWeight() {
+        return financialWeight;
+    }
+
+    public void setFinancialWeight(Integer financialWeight) {
+        this.financialWeight = financialWeight;
+    }
+
+    public RFQType getType() {
+        return type;
+    }
+
+    public void setType(RFQType type) {
+        this.type = type;
+    }
+
+    public ProcessType getProcessType() {
+        return processType;
+    }
+
+    public void setProcessType(ProcessType processType) {
+        this.processType = processType;
+    }
+
+    public List<RFQItem> getItems() {
+        return items;
+    }
+
+    public void setItems(List<RFQItem> items) {
+        this.items = items;
+    }
+
+    public BigDecimal getEstimatedValue() {
+        return estimatedValue;
+    }
+
+    public void setEstimatedValue(BigDecimal estimatedValue) {
+        this.estimatedValue = estimatedValue;
+    }
+
+    public Long getProposalsCount() {
+        return proposalsCount;
+    }
+
+    public void setProposalsCount(Long proposalsCount) {
+        this.proposalsCount = proposalsCount;
     }
 }

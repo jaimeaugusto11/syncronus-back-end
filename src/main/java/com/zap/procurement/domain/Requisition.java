@@ -1,5 +1,6 @@
 package com.zap.procurement.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -65,8 +66,138 @@ public class Requisition extends BaseEntity {
     private List<RequisitionApproval> approvals = new ArrayList<>();
 
     // Purchase orders generated from this requisition
+    @JsonIgnore
     @OneToMany(mappedBy = "requisition", cascade = CascadeType.ALL)
     private List<PORequisition> purchaseOrders = new ArrayList<>();
+
+    // Manual Getters and Setters
+    public String getCode() {
+        return code;
+    }
+
+    public void setCode(String code) {
+        this.code = code;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public User getRequester() {
+        return requester;
+    }
+
+    public void setRequester(User requester) {
+        this.requester = requester;
+    }
+
+    public Department getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(Department department) {
+        this.department = department;
+    }
+
+    public Department.BudgetType getBudgetType() {
+        return budgetType;
+    }
+
+    public void setBudgetType(Department.BudgetType budgetType) {
+        this.budgetType = budgetType;
+    }
+
+    public String getCostCenter() {
+        return costCenter;
+    }
+
+    public void setCostCenter(String costCenter) {
+        this.costCenter = costCenter;
+    }
+
+    public BudgetLine getBudgetLine() {
+        return budgetLine;
+    }
+
+    public void setBudgetLine(BudgetLine budgetLine) {
+        this.budgetLine = budgetLine;
+    }
+
+    public boolean isExtraordinary() {
+        return extraordinary;
+    }
+
+    public void setExtraordinary(boolean extraordinary) {
+        this.extraordinary = extraordinary;
+    }
+
+    public BigDecimal getTotalAmount() {
+        return totalAmount;
+    }
+
+    public void setTotalAmount(BigDecimal totalAmount) {
+        this.totalAmount = totalAmount;
+    }
+
+    public RequisitionStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(RequisitionStatus status) {
+        this.status = status;
+    }
+
+    public String getJustification() {
+        return justification;
+    }
+
+    public void setJustification(String justification) {
+        this.justification = justification;
+    }
+
+    public Priority getPriority() {
+        return priority;
+    }
+
+    public void setPriority(Priority priority) {
+        this.priority = priority;
+    }
+
+    public LocalDate getNeededBy() {
+        return neededBy;
+    }
+
+    public void setNeededBy(LocalDate neededBy) {
+        this.neededBy = neededBy;
+    }
+
+    public List<RequisitionItem> getItems() {
+        return items;
+    }
+
+    public void setItems(List<RequisitionItem> items) {
+        this.items = items;
+    }
+
+    public List<RequisitionApproval> getApprovals() {
+        return approvals;
+    }
+
+    public void setApprovals(List<RequisitionApproval> approvals) {
+        this.approvals = approvals;
+    }
+
+    public List<PORequisition> getPurchaseOrders() {
+        return purchaseOrders;
+    }
+
+    public void setPurchaseOrders(List<PORequisition> purchaseOrders) {
+        this.purchaseOrders = purchaseOrders;
+    }
 
     public enum RequisitionStatus {
         DRAFT,

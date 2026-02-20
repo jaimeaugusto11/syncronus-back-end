@@ -54,4 +54,77 @@ public class RFQItem extends BaseEntity {
         AWARDED,
         CANCELLED
     }
+
+    // Manual Getters and Setters
+    public RFQ getRfq() {
+        return rfq;
+    }
+
+    public void setRfq(RFQ rfq) {
+        this.rfq = rfq;
+    }
+
+    public RequisitionItem getRequisitionItem() {
+        return requisitionItem;
+    }
+
+    public void setRequisitionItem(RequisitionItem requisitionItem) {
+        this.requisitionItem = requisitionItem;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getSpecifications() {
+        return specifications;
+    }
+
+    public void setSpecifications(String specifications) {
+        this.specifications = specifications;
+    }
+
+    public BigDecimal getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(BigDecimal quantity) {
+        this.quantity = quantity;
+    }
+
+    public String getUnit() {
+        return unit;
+    }
+
+    public void setUnit(String unit) {
+        this.unit = unit;
+    }
+
+    public BigDecimal getEstimatedPrice() {
+        return estimatedPrice;
+    }
+
+    public void setEstimatedPrice(BigDecimal estimatedPrice) {
+        this.estimatedPrice = estimatedPrice;
+    }
+
+    public ProposalItem getAwardedProposalItem() {
+        return awardedProposalItem;
+    }
+
+    public void setAwardedProposalItem(ProposalItem awardedProposalItem) {
+        this.awardedProposalItem = awardedProposalItem;
+    }
+
+    public RFQItemStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(RFQItemStatus status) {
+        this.status = status;
+    }
 }
