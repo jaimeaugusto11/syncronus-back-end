@@ -42,7 +42,7 @@ public class ProposalNegotiationService {
 
     @Transactional
     public ProposalNegotiationMessage sendMessage(UUID proposalId, String content, UUID senderId,
-            boolean isFromSupplier) {
+            boolean isFromSupplier, List<String> attachmentUrls) {
         SupplierProposal proposal = proposalRepository.findById(proposalId)
                 .orElseThrow(() -> new RuntimeException("Proposta não encontrada"));
 
@@ -63,7 +63,28 @@ public class ProposalNegotiationService {
             message.setSenderName(user.getName());
         }
 
-        return messageRepository.save(message);
+        ProposalNegotiationMessage saved = messageRepository.save(message);
+
+        if (attachmentUrls != null) {
+            for (String url : attachmentUrls) {
+                NegotiationAttachment attachment = new NegotiationAttachment();
+                attachment.setMessage(saved);
+                attachment.setFileUrl(url);
+                attachment.setTenantId(proposal.getTenantId());
+                // In a real scenario, we'd guess filename/type or pass them from frontend
+                saved.getAttachments().add(attachment);
+            }
+        }
+
+        return messageRepository.save(saved);
+    }
+
+    public List<ProposalNegotiationMessage> getRFQGallery(UUID rfqId) {
+        // Find all messages for proposals of this RFQ that have attachments
+        return messageRepository.findAll().stream()
+                .filter(m -> m.getProposal().getRfq().getId().equals(rfqId))
+                .filter(m -> m.getAttachments() != null && !m.getAttachments().isEmpty())
+                .collect(java.util.stream.Collectors.toList());
     }
 
     public List<ProposalPriceHistory> getPriceHistory(UUID proposalId) {

@@ -13,6 +13,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "proposal_items")
 @Data
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
 public class ProposalItem {
 
     public ProposalItem() {
@@ -32,7 +33,8 @@ public class ProposalItem {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "rfq_item_id", nullable = false)
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties("awardedProposalItem")
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({ "awardedProposalItem", "hibernateLazyInitializer",
+            "handler" })
     private RFQItem rfqItem;
 
     @Column(nullable = false)

@@ -10,13 +10,14 @@ import java.math.BigDecimal;
 @Table(name = "po_requisitions")
 @Data
 @EqualsAndHashCode(callSuper = true)
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
 public class PORequisition extends BaseEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "purchase_order_id", nullable = false)
     private PurchaseOrder purchaseOrder;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "requisition_id", nullable = false)
     private Requisition requisition;
 
@@ -25,4 +26,37 @@ public class PORequisition extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    // Manual Getters and Setters
+    public PurchaseOrder getPurchaseOrder() {
+        return purchaseOrder;
+    }
+
+    public void setPurchaseOrder(PurchaseOrder purchaseOrder) {
+        this.purchaseOrder = purchaseOrder;
+    }
+
+    public Requisition getRequisition() {
+        return requisition;
+    }
+
+    public void setRequisition(Requisition requisition) {
+        this.requisition = requisition;
+    }
+
+    public BigDecimal getQuantityFulfilled() {
+        return quantityFulfilled;
+    }
+
+    public void setQuantityFulfilled(BigDecimal quantityFulfilled) {
+        this.quantityFulfilled = quantityFulfilled;
+    }
+
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
+    }
 }

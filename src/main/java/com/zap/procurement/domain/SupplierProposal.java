@@ -15,6 +15,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 @Table(name = "supplier_proposals")
 @Data
 @EqualsAndHashCode(callSuper = true)
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
 public class SupplierProposal extends BaseEntity {
 
     public SupplierProposal() {

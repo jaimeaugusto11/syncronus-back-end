@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -59,7 +60,9 @@ public class RFQController {
     @PostMapping("/from-items")
     @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
     public ResponseEntity<RFQ> createFromItems(@RequestBody Map<String, Object> request) {
-        UUID categoryId = UUID.fromString(request.get("categoryId").toString());
+        UUID categoryId = request.get("categoryId") != null
+                ? UUID.fromString(request.get("categoryId").toString())
+                : null;
         @SuppressWarnings("unchecked")
         List<String> itemIdsStrings = (List<String>) request.get("itemIds");
         List<UUID> itemIds = itemIdsStrings.stream().map(UUID::fromString).toList();
@@ -137,6 +140,21 @@ public class RFQController {
         // Assuming suppliers are users.
         SupplierProposal submitted = rfqService.submitProposal(proposal);
         return ResponseEntity.ok(submitted);
+    }
+
+    @PostMapping("/{id}/award-items")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
+    public ResponseEntity<?> awardRFQItems(
+            @PathVariable UUID id,
+            @RequestBody Map<String, String> awardMapString) {
+
+        Map<UUID, UUID> awardMap = new HashMap<>();
+        for (Map.Entry<String, String> entry : awardMapString.entrySet()) {
+            awardMap.put(UUID.fromString(entry.getKey()), UUID.fromString(entry.getValue()));
+        }
+
+        rfqService.awardRFQItems(id, awardMap);
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/proposals/{id}/evaluate")
@@ -227,10 +245,19 @@ public class RFQController {
     @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('MANAGE_RFQS')")
     public ResponseEntity<ProposalNegotiationMessage> sendProposalMessage(
             @PathVariable UUID proposalId,
-            @RequestBody Map<String, String> request) {
-        String content = request.get("content");
-        UUID senderId = UUID.fromString(request.get("senderId"));
-        return ResponseEntity.ok(negotiationService.sendMessage(proposalId, content, senderId, false));
+            @RequestBody Map<String, Object> request) {
+        String content = (String) request.get("content");
+        UUID senderId = UUID.fromString(request.get("senderId").toString());
+        @SuppressWarnings("unchecked")
+        List<String> attachmentUrls = (List<String>) request.get("attachmentUrls");
+
+        return ResponseEntity.ok(negotiationService.sendMessage(proposalId, content, senderId, false, attachmentUrls));
+    }
+
+    @GetMapping("/{id}/gallery")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VIEW_RFQS')")
+    public ResponseEntity<List<ProposalNegotiationMessage>> getRFQGallery(@PathVariable UUID id) {
+        return ResponseEntity.ok(negotiationService.getRFQGallery(id));
     }
 
     @GetMapping("/proposals/{proposalId}/price-history")

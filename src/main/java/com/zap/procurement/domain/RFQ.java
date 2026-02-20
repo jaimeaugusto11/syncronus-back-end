@@ -3,7 +3,9 @@ package com.zap.procurement.domain;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.hibernate.annotations.Formula;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +14,14 @@ import java.util.List;
 @Table(name = "rfqs")
 @Data
 @EqualsAndHashCode(callSuper = true)
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
 public class RFQ extends BaseEntity {
+
+    @Formula("(SELECT COALESCE(SUM(ri.estimated_price * ri.quantity), 0) FROM rfq_items ri WHERE ri.rfq_id = id)")
+    private BigDecimal estimatedValue;
+
+    @Formula("(SELECT COUNT(*) FROM supplier_proposals p WHERE p.rfq_id = id)")
+    private Long proposalsCount;
 
     public RFQ() {
         super();
@@ -42,7 +51,7 @@ public class RFQ extends BaseEntity {
     private LocalDate closingDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private RFQStatus status = RFQStatus.DRAFT;
 
     @Column(name = "technical_weight")
@@ -60,7 +69,8 @@ public class RFQ extends BaseEntity {
     private ProcessType processType = ProcessType.RFQ;
 
     public enum RFQStatus {
-        DRAFT, OPEN, PUBLISHED, READY_FOR_COMPARISON, TECHNICAL_VALIDATION, CLOSED, AWARDED, CANCELLED
+        DRAFT, OPEN, PUBLISHED, READY_COMPARE, @Deprecated
+        READY_FOR_COMPARISON, TECHNICAL_VALIDATION, CLOSED, PARTIALLY_AWARDED, AWARDED, CANCELLED
     }
 
     @OneToMany(mappedBy = "rfq", cascade = CascadeType.ALL, orphanRemoval = true)

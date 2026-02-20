@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import java.math.BigDecimal;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "proposal_price_history")
@@ -12,6 +13,7 @@ import java.util.UUID;
 @EqualsAndHashCode(callSuper = true)
 public class ProposalPriceHistory extends BaseEntity {
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "proposal_id", nullable = false)
     private SupplierProposal proposal;

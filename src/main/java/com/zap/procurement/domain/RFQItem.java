@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 @Table(name = "rfq_items")
 @Data
 @EqualsAndHashCode(callSuper = true)
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
 public class RFQItem extends BaseEntity {
 
     public RFQItem() {
@@ -41,7 +42,7 @@ public class RFQItem extends BaseEntity {
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "awarded_proposal_item_id")
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties("rfqItem")
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({ "rfqItem", "hibernateLazyInitializer", "handler" })
     private ProposalItem awardedProposalItem;
 
     @Enumerated(EnumType.STRING)

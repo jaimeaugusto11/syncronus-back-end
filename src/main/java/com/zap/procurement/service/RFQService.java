@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -55,7 +54,13 @@ public class RFQService {
         private UserRepository userRepository;
 
         @Autowired
+        private CategoryRepository categoryRepository;
+
+        @Autowired
         private PurchaseOrderService purchaseOrderService;
+
+        @Autowired
+        private POItemRepository poItemRepository;
 
         @Transactional
         public RFQ createRFQForCategory(UUID categoryId, List<UUID> requisitionItemIds, RFQ.RFQType type,
@@ -88,7 +93,12 @@ public class RFQService {
 
                 RFQ rfq = new RFQ();
                 rfq.setTenantId(tenantId);
-                if (!items.isEmpty() && items.get(0).getCategory() != null) {
+
+                // Logic for multi-category or single category
+                if (categoryId != null) {
+                        categoryRepository.findById(categoryId).ifPresent(rfq::setCategory);
+                } else if (!items.isEmpty()
+                                && items.stream().map(i -> i.getCategory().getId()).distinct().count() == 1) {
                         rfq.setCategory(items.get(0).getCategory());
                 }
 
@@ -98,9 +108,8 @@ public class RFQService {
                 rfq.setIssueDate(java.time.LocalDate.now());
 
                 // Novos campos
-                rfq.setTitle(title != null ? title
-                                : "Processo de Sourcing - " + (rfq.getCategory() != null ? rfq.getCategory().getName()
-                                                : "Sem Categoria"));
+                String categoryName = rfq.getCategory() != null ? rfq.getCategory().getName() : "Multi-Categoria";
+                rfq.setTitle(title != null ? title : "Processo de Sourcing - " + categoryName);
                 rfq.setDescription(description);
                 rfq.setClosingDate(closingDate != null ? closingDate : java.time.LocalDate.now().plusDays(14));
 
@@ -273,8 +282,15 @@ public class RFQService {
                                 .orElseThrow(() -> new RuntimeException("RFQ not found"));
 
                 if (rfq.getStatus() == RFQ.RFQStatus.AWARDED) {
-                        throw new RuntimeException("RFQ is already awarded.");
+                        throw new RuntimeException("Esta RFQ já foi totalmente adjudicada.");
                 }
+
+                if (rfq.getStatus() == RFQ.RFQStatus.CLOSED || rfq.getStatus() == RFQ.RFQStatus.CANCELLED) {
+                        throw new RuntimeException(
+                                        "Não é possível adjudicar itens em uma RFQ com status: " + rfq.getStatus());
+                }
+
+                Map<UUID, List<UUID>> supplierToItemsMap = new HashMap<>();
 
                 for (Map.Entry<UUID, UUID> entry : rfqItemToProposalItemIdMap.entrySet()) {
                         UUID rfqItemId = entry.getKey();
@@ -295,8 +311,13 @@ public class RFQService {
                                 throw new RuntimeException("ProposalItem does not match RFQItem.");
                         }
 
+                        if (rfqItem.getStatus() == RFQItem.RFQItemStatus.AWARDED) {
+                                // Se o item já foi adjudicado, ignorar ou lançar erro
+                                continue;
+                        }
+
                         rfqItem.setAwardedProposalItem(winningItem);
-                        rfqItem.setStatus(RFQItem.RFQItemStatus.AWARDED); // Assuming enum is imported or qualified
+                        rfqItem.setStatus(RFQItem.RFQItemStatus.AWARDED);
                         rfqItemRepository.save(rfqItem);
 
                         // Update Requisition Item Status
@@ -305,6 +326,19 @@ public class RFQService {
                                 reqItem.setStatus(RequisitionItem.RequisitionItemStatus.AWARDED);
                                 requisitionItemRepository.save(reqItem);
                         }
+
+                        // Group by supplier for PO generation
+                        UUID supplierId = winningItem.getProposal().getSupplier().getId();
+                        supplierToItemsMap.computeIfAbsent(supplierId, k -> new ArrayList<>()).add(rfqItemId);
+                }
+
+                // Generate POs for each supplier
+                UUID currentUserId = TenantContext.getCurrentUser();
+                User currentUser = userRepository.findById(currentUserId)
+                                .orElseThrow(() -> new RuntimeException("User not found"));
+
+                for (Map.Entry<UUID, List<UUID>> entry : supplierToItemsMap.entrySet()) {
+                        purchaseOrderService.createPOFromAwardedItems(entry.getKey(), entry.getValue(), currentUser);
                 }
 
                 // Check if all items are awarded
@@ -314,8 +348,10 @@ public class RFQService {
 
                 if (allAwarded) {
                         rfq.setStatus(RFQ.RFQStatus.AWARDED);
-                        rfqRepository.save(rfq);
+                } else if (rfq.getStatus() != RFQ.RFQStatus.PARTIALLY_AWARDED) {
+                        rfq.setStatus(RFQ.RFQStatus.PARTIALLY_AWARDED);
                 }
+                rfqRepository.save(rfq);
         }
 
         @Transactional
@@ -422,7 +458,7 @@ public class RFQService {
                         throw new RuntimeException("Apenas RFQs 'Abertas' podem avançar para Comparativo.");
                 }
 
-                rfq.setStatus(RFQ.RFQStatus.READY_FOR_COMPARISON);
+                rfq.setStatus(RFQ.RFQStatus.READY_COMPARE);
                 rfqRepository.save(rfq);
         }
 
@@ -431,7 +467,7 @@ public class RFQService {
                 RFQ rfq = rfqRepository.findById(rfqId)
                                 .orElseThrow(() -> new RuntimeException("RFQ not found"));
 
-                if (rfq.getStatus() != RFQ.RFQStatus.READY_FOR_COMPARISON) {
+                if (rfq.getStatus() != RFQ.RFQStatus.READY_COMPARE) {
                         throw new RuntimeException(
                                         "A RFQ deve estar em 'Comparativo' para avançar para 'Validação Técnica'.");
                 }
@@ -465,7 +501,7 @@ public class RFQService {
                         // Validate Closing Date
                         if (rfq.getClosingDate() != null && java.time.LocalDate.now().isAfter(rfq.getClosingDate())) {
                                 // Auto-transition logic could trigger here, but for now just block
-                                rfq.setStatus(RFQ.RFQStatus.READY_FOR_COMPARISON);
+                                rfq.setStatus(RFQ.RFQStatus.READY_COMPARE);
                                 rfqRepository.save(rfq);
                                 throw new RuntimeException("O prazo para envio de propostas para esta RFQ já expirou.");
                         }
@@ -626,15 +662,34 @@ public class RFQService {
                                                 .filter(pi -> pi.getRfqItem().getId().equals(rfqItem.getId()))
                                                 .findFirst()
                                                 .ifPresent(pi -> {
+                                                        // Check if this rfqItem is already awarded and link to its PO
+                                                        UUID poId = null;
+                                                        String poCode = null;
+
+                                                        if (rfqItem.getStatus() == RFQItem.RFQItemStatus.AWARDED) {
+                                                                Optional<POItem> poItemOpt = poItemRepository
+                                                                                .findBySourceRfqItemId(rfqItem.getId());
+                                                                if (poItemOpt.isPresent()) {
+                                                                        poId = poItemOpt.get().getPurchaseOrder()
+                                                                                        .getId();
+                                                                        poCode = poItemOpt.get().getPurchaseOrder()
+                                                                                        .getCode();
+                                                                }
+                                                        }
+
                                                         supplierPrices.add(ProposalComparisonDTO.SupplierItemPriceDTO
                                                                         .builder()
                                                                         .supplierId(p.getSupplier().getId())
+                                                                        .proposalItemId(pi.getId())
                                                                         .supplierName(p.getSupplier().getName())
                                                                         .unitPrice(pi.getUnitPrice())
                                                                         .totalPrice(pi.getTotalPrice())
                                                                         .isLowest(lowestItemPrice != null
                                                                                         && pi.getUnitPrice().compareTo(
                                                                                                         lowestItemPrice) == 0)
+                                                                        .poId(poId)
+                                                                        .poCode(poCode)
+                                                                        .status(rfqItem.getStatus().toString())
                                                                         .build());
                                                 });
                         }

@@ -26,9 +26,6 @@ public class PurchaseOrderService {
     private SupplierProposalRepository proposalRepository;
 
     @Autowired
-    private TenantRepository tenantRepository;
-
-    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -113,6 +110,9 @@ public class PurchaseOrderService {
     @Transactional
     public PurchaseOrder createPOFromAwardedItems(UUID supplierId, List<UUID> rfqItemIds, User createdBy) {
         UUID tenantId = TenantContext.getCurrentTenant();
+        if (tenantId == null && createdBy != null) {
+            tenantId = createdBy.getTenantId();
+        }
 
         Supplier supplier = supplierRepository.findById(supplierId)
                 .orElseThrow(() -> new RuntimeException("Supplier not found"));
@@ -123,13 +123,9 @@ public class PurchaseOrderService {
         po.setCreatedBy(createdBy);
         po.setCode(generatePOCode(tenantId));
         po.setOrderDate(java.time.LocalDate.now());
-        // Expected delivery date? Maybe max of items or default?
-        // po.setExpectedDeliveryDate(...);
-        po.setTotalAmount(BigDecimal.ZERO); // Recalculate from items
-        po.setCurrency("EUR"); // Default or from supplier/items?
         po.setStatus(PurchaseOrder.POStatus.DRAFT);
-
-        PurchaseOrder savedPO = poRepository.save(po);
+        po.setDeliveryAddress("Endereço padrão da empresa");
+        po.setCurrency("AOA"); // Default
 
         BigDecimal totalAmount = BigDecimal.ZERO;
 
@@ -138,9 +134,12 @@ public class PurchaseOrderService {
                     .orElseThrow(() -> new RuntimeException("RFQItem not found: " + rfqItemId));
 
             POItem poItem = new POItem();
+            poItem.setPurchaseOrder(po);
+            poItem.setDescription(rfqItem.getDescription());
+            poItem.setQuantity(rfqItem.getQuantity());
+            poItem.setTenantId(tenantId);
+            poItem.setSourceRfqItem(rfqItem);
 
-            // We need the AWARDED price.
-            // In the "Per Item" award model, we should have this info.
             if (rfqItem.getAwardedProposalItem() != null) {
                 ProposalItem winningItem = rfqItem.getAwardedProposalItem();
                 if (!winningItem.getProposal().getSupplier().getId().equals(supplierId)) {
@@ -149,58 +148,57 @@ public class PurchaseOrderService {
                 }
                 poItem.setUnitPrice(winningItem.getUnitPrice());
                 poItem.setTotalPrice(winningItem.getTotalPrice());
+
+                // Use proposal info for PO header if not set
+                if (po.getRfq() == null) {
+                    po.setRfq(rfqItem.getRfq());
+                    po.setCurrency(winningItem.getProposal().getCurrency());
+                    po.setExpectedDeliveryDate(winningItem.getProposal().getDeliveryDate());
+                    po.setPaymentTerms(winningItem.getProposal().getPaymentTerms());
+                }
             } else {
-                // Fallback if not explicitly marked (legacy or pre-award logic?)
-                // For now, allow estimated price but maybe log warning or assume strictly
-                // awarded.
-                // Given the method name "createPOFromAwardedItems", we should expect them to be
-                // awarded.
-                // But for development/migration robustness:
-                poItem.setUnitPrice(rfqItem.getEstimatedPrice());
-                poItem.setTotalPrice(rfqItem.getEstimatedPrice().multiply(rfqItem.getQuantity()));
+                poItem.setUnitPrice(
+                        rfqItem.getEstimatedPrice() != null ? rfqItem.getEstimatedPrice() : BigDecimal.ZERO);
+                poItem.setTotalPrice(poItem.getUnitPrice().multiply(rfqItem.getQuantity()));
             }
 
-            poItem.setPurchaseOrder(savedPO);
-            poItem.setDescription(rfqItem.getDescription());
-            poItem.setQuantity(rfqItem.getQuantity());
-
-            poItem.setSourceRfqItem(rfqItem);
             if (rfqItem.getRequisitionItem() != null) {
                 poItem.setSourceRequisitionItem(rfqItem.getRequisitionItem());
-
-                // Link Requisition
                 Requisition req = rfqItem.getRequisitionItem().getRequisition();
                 if (req != null) {
-                    boolean alreadyLinked = savedPO.getRequisitions().stream()
+                    boolean alreadyLinked = po.getRequisitions().stream()
                             .anyMatch(pr -> pr.getRequisition().getId().equals(req.getId()));
                     if (!alreadyLinked) {
-                        savedPO.addRequisition(req, BigDecimal.ZERO);
+                        po.addRequisition(req, BigDecimal.ZERO);
                     }
                 }
             }
-            savedPO.getItems().add(poItem);
+
+            po.getItems().add(poItem);
             totalAmount = totalAmount.add(poItem.getTotalPrice());
         }
 
-        savedPO.setTotalAmount(totalAmount);
-        return poRepository.save(savedPO);
+        // Final fallbacks
+        if (po.getExpectedDeliveryDate() == null) {
+            po.setExpectedDeliveryDate(java.time.LocalDate.now().plusDays(15));
+        }
+        po.setTotalAmount(totalAmount);
+
+        return poRepository.save(po);
     }
 
     @Transactional
     public PurchaseOrder createPOFromProposal(UUID proposalId, User createdBy) {
         UUID tenantId = TenantContext.getCurrentTenant();
-        Tenant tenant = tenantRepository.findById(tenantId)
-                .orElseThrow(() -> new RuntimeException("Tenant not found"));
+        if (tenantId == null && createdBy != null) {
+            tenantId = createdBy.getTenantId();
+        }
 
         SupplierProposal proposal = proposalRepository.findById(proposalId)
                 .orElseThrow(() -> new RuntimeException("Proposal not found"));
 
         PurchaseOrder po = new PurchaseOrder();
         po.setTenantId(tenantId);
-        // po.setRfq(proposal.getRfq()); // Deprecated, don't set or set for legacy
-        // reference?
-        // proposal.getRfq() is 1 RFQ.
-
         po.setSupplier(proposal.getSupplier());
         po.setCreatedBy(createdBy);
         po.setCode(generatePOCode(tenantId));
@@ -210,17 +208,18 @@ public class PurchaseOrderService {
         po.setCurrency(proposal.getCurrency());
         po.setPaymentTerms(proposal.getPaymentTerms());
         po.setStatus(PurchaseOrder.POStatus.DRAFT);
-
-        PurchaseOrder savedPO = poRepository.save(po);
+        po.setRfq(proposal.getRfq());
+        po.setDeliveryAddress("Endereço padrão da empresa");
 
         // Copy items from proposal and Link with Requisitions via Items
         for (ProposalItem propItem : proposal.getItems()) {
             POItem poItem = new POItem();
-            poItem.setPurchaseOrder(savedPO);
+            poItem.setPurchaseOrder(po);
             poItem.setDescription(propItem.getRfqItem().getDescription());
             poItem.setQuantity(propItem.getRfqItem().getQuantity());
             poItem.setUnitPrice(propItem.getUnitPrice());
             poItem.setTotalPrice(propItem.getTotalPrice());
+            poItem.setTenantId(tenantId);
 
             // Link sources
             poItem.setSourceRfqItem(propItem.getRfqItem());
@@ -231,22 +230,19 @@ public class PurchaseOrderService {
                 Requisition req = propItem.getRfqItem().getRequisitionItem().getRequisition();
                 if (req != null) {
                     // Check if already linked
-                    boolean alreadyLinked = savedPO.getRequisitions().stream()
+                    boolean alreadyLinked = po.getRequisitions().stream()
                             .anyMatch(pr -> pr.getRequisition().getId().equals(req.getId()));
 
                     if (!alreadyLinked) {
-                        savedPO.addRequisition(req, BigDecimal.ZERO); // Quantity fulfilled calculation is complex,
-                                                                      // keeping 0 or updating later
+                        po.addRequisition(req, BigDecimal.ZERO);
                     }
-
-                    // Construct fulfiled quantity logic?
                 }
             }
 
-            savedPO.getItems().add(poItem);
+            po.getItems().add(poItem);
         }
 
-        return poRepository.save(savedPO);
+        return poRepository.save(po);
     }
 
     @Transactional

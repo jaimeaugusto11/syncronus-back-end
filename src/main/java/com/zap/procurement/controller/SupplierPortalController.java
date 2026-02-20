@@ -379,10 +379,14 @@ public class SupplierPortalController {
     @PostMapping("/proposals/{proposalId}/messages")
     public ResponseEntity<ProposalNegotiationMessage> sendProposalMessage(
             @PathVariable UUID proposalId,
-            @RequestHeader("X-Supplier-User-ID") UUID supplierUserId,
-            @RequestBody Map<String, String> request) {
-        String content = request.get("content");
-        return ResponseEntity.ok(negotiationService.sendMessage(proposalId, content, supplierUserId, true));
+            @RequestHeader("X-Supplier-User-ID") @NonNull UUID supplierUserId,
+            @RequestBody Map<String, Object> request) {
+        String content = (String) request.get("content");
+        @SuppressWarnings("unchecked")
+        List<String> attachmentUrls = (List<String>) request.get("attachmentUrls");
+
+        return ResponseEntity
+                .ok(negotiationService.sendMessage(proposalId, content, supplierUserId, true, attachmentUrls));
     }
 
     @GetMapping("/proposals/{proposalId}/price-history")

@@ -3,7 +3,10 @@ package com.zap.procurement.domain;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "proposal_negotiation_messages")
@@ -11,6 +14,7 @@ import java.util.UUID;
 @EqualsAndHashCode(callSuper = true)
 public class ProposalNegotiationMessage extends BaseEntity {
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "proposal_id", nullable = false)
     private SupplierProposal proposal;
@@ -27,6 +31,9 @@ public class ProposalNegotiationMessage extends BaseEntity {
     @com.fasterxml.jackson.annotation.JsonProperty("isFromSupplier")
     @Column(name = "is_from_supplier", nullable = false)
     private boolean isFromSupplier;
+
+    @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<NegotiationAttachment> attachments = new ArrayList<>();
 
     public ProposalNegotiationMessage() {
         super();

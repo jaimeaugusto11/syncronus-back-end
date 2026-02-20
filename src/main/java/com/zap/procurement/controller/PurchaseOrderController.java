@@ -41,7 +41,10 @@ public class PurchaseOrderController {
     @PreAuthorize("hasAuthority('VIEW_POS')")
     public ResponseEntity<PurchaseOrder> getPO(@PathVariable UUID id) {
         return poRepository.findById(id)
-                .map(ResponseEntity::ok)
+                .map(po -> {
+                    // Force load items if needed, but EAGER should handle it
+                    return ResponseEntity.ok(po);
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 

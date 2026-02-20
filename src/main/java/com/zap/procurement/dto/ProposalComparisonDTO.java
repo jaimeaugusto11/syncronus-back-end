@@ -37,6 +37,8 @@ public class ProposalComparisonDTO {
         private boolean isCheapest;
         private boolean isFastest;
         private boolean isBestScored;
+        private UUID poId;
+        private String poCode;
     }
 
     @Data
@@ -55,9 +57,13 @@ public class ProposalComparisonDTO {
     @Builder
     public static class SupplierItemPriceDTO {
         private UUID supplierId;
+        private UUID proposalItemId;
         private String supplierName;
         private BigDecimal unitPrice;
         private BigDecimal totalPrice;
         private boolean isLowest;
+        private UUID poId;
+        private String poCode;
+        private String status;
     }
 }

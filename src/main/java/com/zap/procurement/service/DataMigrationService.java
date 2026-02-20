@@ -8,6 +8,8 @@ import com.zap.procurement.domain.RequisitionItem.RequisitionItemStatus;
 import com.zap.procurement.repository.RFQRepository;
 import com.zap.procurement.repository.RequisitionItemRepository;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -25,11 +27,23 @@ public class DataMigrationService implements ApplicationRunner {
     @Autowired
     private RFQRepository rfqRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
+        System.out.println("Applying Schema Fix for RFQ Status...");
+        try {
+            entityManager.createNativeQuery("ALTER TABLE rfqs MODIFY COLUMN status VARCHAR(50)").executeUpdate();
+            System.out.println("Schema Fix Applied Successfully.");
+        } catch (Exception e) {
+            System.err.println("Failed to apply schema fix (might already be fixed): " + e.getMessage());
+        }
+
         System.out.println("Starting Data Migration for RequisitionItem Status...");
         migrateRequisitionItemStatus();
+        migrateRFQStatuses();
         migrateRFQCategories();
         System.out.println("Data Migration Completed.");
     }
@@ -86,6 +100,16 @@ public class DataMigrationService implements ApplicationRunner {
                         break;
                 }
                 requisitionItemRepository.save(item);
+            }
+        }
+    }
+
+    private void migrateRFQStatuses() {
+        List<RFQ> rfqs = rfqRepository.findAll();
+        for (RFQ rfq : rfqs) {
+            if (rfq.getStatus() == RFQ.RFQStatus.READY_FOR_COMPARISON) {
+                rfq.setStatus(RFQ.RFQStatus.READY_COMPARE);
+                rfqRepository.save(rfq);
             }
         }
     }
