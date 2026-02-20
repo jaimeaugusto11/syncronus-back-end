@@ -2,6 +2,7 @@ package com.zap.procurement.dto;
 
 import lombok.Data;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -37,4 +38,7 @@ public class DashboardDTO {
     private Integer requisitionsThisMonth;
     private Integer rfqsThisMonth;
     private Integer posThisMonth;
+
+    // AI Insights
+    private List<AIInsightDTO> aiInsights;
 }
