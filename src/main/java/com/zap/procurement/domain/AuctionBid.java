@@ -31,7 +31,11 @@ public class AuctionBid extends BaseEntity {
     private Boolean isLeading = false;
 
     @PrePersist
+    @Override
     protected void onCreate() {
-        this.bidTime = LocalDateTime.now();
+        super.onCreate(); // Preenche createdAt, updatedAt, tenantId
+        if (this.bidTime == null) {
+            this.bidTime = LocalDateTime.now();
+        }
     }
 }
