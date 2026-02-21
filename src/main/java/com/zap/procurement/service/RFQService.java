@@ -72,7 +72,7 @@ public class RFQService {
         public RFQ createRFQForCategory(UUID categoryId, List<UUID> requisitionItemIds, RFQ.RFQType type,
                         RFQ.ProcessType processType, String title, String description,
                         java.time.LocalDate closingDate, Integer technicalWeight, Integer financialWeight,
-                        List<UUID> supplierIds) {
+                        List<UUID> supplierIds, java.math.BigDecimal startingPrice, java.math.BigDecimal minIncrement) {
                 UUID tenantId = TenantContext.getCurrentTenant();
 
                 List<RequisitionItem> items = requisitionItemRepository.findAllById(requisitionItemIds);
@@ -123,6 +123,12 @@ public class RFQService {
                         rfq.setTechnicalWeight(technicalWeight);
                 if (financialWeight != null)
                         rfq.setFinancialWeight(financialWeight);
+
+                // Campos específicos de Leilão Reverso
+                if (processType == RFQ.ProcessType.REVERSE_AUCTION) {
+                        rfq.setStartingPrice(startingPrice);
+                        rfq.setMinIncrement(minIncrement);
+                }
 
                 rfq.setStatus(RFQ.RFQStatus.DRAFT);
 

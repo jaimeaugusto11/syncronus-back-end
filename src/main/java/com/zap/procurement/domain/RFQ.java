@@ -65,7 +65,7 @@ public class RFQ extends BaseEntity {
     private RFQType type = RFQType.PUBLIC;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "process_type", nullable = false)
+    @Column(name = "process_type", nullable = false, length = 20)
     private ProcessType processType = ProcessType.RFQ;
 
     // Auction Fields

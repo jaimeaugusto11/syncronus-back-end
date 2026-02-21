@@ -91,8 +91,18 @@ public class RFQController {
                 ? Integer.parseInt(request.get("financialWeight").toString())
                 : null;
 
+        // Campos específicos de Leilão Reverso
+        java.math.BigDecimal startingPrice = request.containsKey("startingPrice")
+                && request.get("startingPrice") != null
+                        ? new java.math.BigDecimal(request.get("startingPrice").toString())
+                        : null;
+        java.math.BigDecimal minIncrement = request.containsKey("minIncrement") && request.get("minIncrement") != null
+                ? new java.math.BigDecimal(request.get("minIncrement").toString())
+                : null;
+
         RFQ rfq = rfqService.createRFQForCategory(categoryId, itemIds, type, processType,
-                title, description, closingDate, technicalWeight, financialWeight, supplierIds);
+                title, description, closingDate, technicalWeight, financialWeight, supplierIds,
+                startingPrice, minIncrement);
 
         // Handle Questions if provided
         if (request.containsKey("questions")) {
