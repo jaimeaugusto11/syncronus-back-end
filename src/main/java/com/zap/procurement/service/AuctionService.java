@@ -155,14 +155,14 @@ public class AuctionService {
                     pItem.setRfqItem(rfqItem);
 
                     int qty = rfqItem.getQuantity() != null ? rfqItem.getQuantity().intValue() : 1;
-                    pItem.setQuantity(qty);
+                    pItem.setQuantity(BigDecimal.valueOf(qty));
 
                     // Distribuir o valor do lance igualmente pelos itens
                     BigDecimal unitPrice = winningBid.getBidAmount()
                             .divide(BigDecimal.valueOf(itemCount), 2, RoundingMode.HALF_UP);
                     pItem.setUnitPrice(unitPrice);
                     pItem.setTotalPrice(unitPrice.multiply(BigDecimal.valueOf(qty)));
-                    pItem.setTenantId(rfq.getTenantId());
+                    // Nota: ProposalItem não tem tenantId — campo existe apenas em SupplierProposal
 
                     proposal.getItems().add(pItem);
                 }
