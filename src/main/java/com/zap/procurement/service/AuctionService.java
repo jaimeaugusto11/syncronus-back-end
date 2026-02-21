@@ -141,7 +141,7 @@ public class AuctionService {
             proposal.setCurrency("AOA");
             proposal.setStatus(SupplierProposal.ProposalStatus.SUBMITTED);
             proposal.setSubmittedAt(LocalDateTime.now());
-            proposal.setNotes("✅ Proposta gerada automaticamente via Leilão Reverso. " +
+            proposal.setNotes("Proposta gerada automaticamente via Leilao Reverso. " +
                     "Lance vencedor: " + winningBid.getBidAmount() + " AOA por " + winner.getName());
             proposal.setTenantId(rfq.getTenantId());
 
