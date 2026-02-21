@@ -76,7 +76,9 @@ public class SupplierPortalController {
                 .filter(rfqSupplier -> rfqSupplier.getStatus() != RFQSupplier.InvitationStatus.REMOVED)
                 .map(RFQSupplier::getRfq)
                 .filter(rfq -> rfq.getStatus() == RFQ.RFQStatus.OPEN ||
-                        rfq.getStatus() == RFQ.RFQStatus.PUBLISHED)
+                        rfq.getStatus() == RFQ.RFQStatus.PUBLISHED ||
+                        rfq.getStatus() == RFQ.RFQStatus.BAFO_OPEN ||
+                        rfq.getStatus() == RFQ.RFQStatus.AUCTION_IN_PROGRESS)
                 .filter(rfq -> {
                     // Only show RFQ if it has at least one matching item or if it's general/manual
                     if (rfq.getItems() == null || rfq.getItems().isEmpty())
@@ -245,6 +247,7 @@ public class SupplierPortalController {
         RFQ rfq = rfqRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("RFQ not found"));
 
+        // Bloquear apenas RFQs em estado DRAFT
         if (rfq.getStatus() == RFQ.RFQStatus.DRAFT) {
             throw new RuntimeException("RFQ is not yet published");
         }
