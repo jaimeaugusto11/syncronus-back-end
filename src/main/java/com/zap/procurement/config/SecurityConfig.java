@@ -13,6 +13,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 
+// Configuração de segurança global corrigida para permitir acesso CORS da Vercel
 @Configuration
 @EnableWebSecurity
 @org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
@@ -34,7 +35,7 @@ public class SecurityConfig {
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                                 .authorizeHttpRequests(auth -> auth
-                                                .requestMatchers("/auth/**").permitAll() 
+                                                .requestMatchers("/auth/**").permitAll()
                                                 .requestMatchers("/setup/**").permitAll()
                                                 .requestMatchers("/users/init-system").permitAll()
                                                 .requestMatchers("/users/init-system/**").permitAll()
