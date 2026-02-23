@@ -13,6 +13,7 @@ if ([string]::IsNullOrEmpty($EC2_IP)) {
 
 Write-Host "Iniciando em MODO ONLINE (Conectando a $EC2_IP)..." -ForegroundColor Cyan
 Write-Host "IMPORTANTE: Certifique-se que a porta 3306 está aberta no Security Group da AWS." -ForegroundColor Yellow
+Write-Host "DICA: Apos o primeiro arranque bem-sucedido, podes rodar manual_load_aws.sql para popular a base." -ForegroundColor Green
 
 $env:DB_HOST = $EC2_IP
 $env:DB_PORT = "3306"

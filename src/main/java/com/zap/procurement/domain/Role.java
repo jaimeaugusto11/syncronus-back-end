@@ -23,8 +23,8 @@ public class Role extends BaseEntity {
     @JoinTable(name = "role_permissions", joinColumns = @JoinColumn(name = "role_id"), inverseJoinColumns = @JoinColumn(name = "permission_id"))
     private Set<Permission> permissions = new HashSet<>();
 
-    @Column(nullable = false)
-    private boolean system = false;
+    @Column(name = "is_system", nullable = false)
+    private boolean isSystem = false;
 
     @Column(nullable = false)
     private boolean active = true;
@@ -62,11 +62,11 @@ public class Role extends BaseEntity {
     }
 
     public boolean isSystem() {
-        return system;
+        return isSystem;
     }
 
-    public void setSystem(boolean system) {
-        this.system = system;
+    public void setSystem(boolean isSystem) {
+        this.isSystem = isSystem;
     }
 
     public boolean isActive() {
