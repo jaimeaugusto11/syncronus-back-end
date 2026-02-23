@@ -100,9 +100,13 @@ public class RFQController {
                 ? new java.math.BigDecimal(request.get("minIncrement").toString())
                 : null;
 
+        Boolean sealedBidding = request.containsKey("sealedBidding") ? (Boolean) request.get("sealedBidding") : false;
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> itemsDetails = (List<Map<String, Object>>) request.get("items");
+
         RFQ rfq = rfqService.createRFQForCategory(categoryId, itemIds, type, processType,
                 title, description, closingDate, technicalWeight, financialWeight, supplierIds,
-                startingPrice, minIncrement);
+                startingPrice, minIncrement, sealedBidding, itemsDetails);
 
         // Handle Questions if provided
         if (request.containsKey("questions")) {

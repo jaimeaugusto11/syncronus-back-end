@@ -18,6 +18,7 @@ public class ProposalComparisonDTO {
     private List<SupplierSummaryDTO> summaries;
     private List<ItemComparisonDTO> items;
     private String AIAnalysis;
+    private boolean isSealed;
 
     @Data
     @Builder
@@ -51,6 +52,8 @@ public class ProposalComparisonDTO {
         private String unit;
         private List<SupplierItemPriceDTO> prices;
         private BigDecimal targetPrice;
+        private Integer lotNumber;
+        private String lotName;
     }
 
     @Data

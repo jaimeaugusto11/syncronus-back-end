@@ -81,6 +81,9 @@ public class RFQ extends BaseEntity {
     @Column(name = "auction_end_time")
     private java.time.LocalDateTime auctionEndTime;
 
+    @Column(name = "sealed_bidding")
+    private Boolean sealedBidding = false;
+
     public enum RFQStatus {
         DRAFT, OPEN, PUBLISHED, READY_COMPARE, @Deprecated
         READY_FOR_COMPARISON, TECHNICAL_VALIDATION, PENDING_BAFO, BAFO_OPEN, AUCTION_IN_PROGRESS, CLOSED,
@@ -221,5 +224,13 @@ public class RFQ extends BaseEntity {
 
     public void setProposalsCount(Long proposalsCount) {
         this.proposalsCount = proposalsCount;
+    }
+
+    public Boolean getSealedBidding() {
+        return sealedBidding;
+    }
+
+    public void setSealedBidding(Boolean sealedBidding) {
+        this.sealedBidding = sealedBidding;
     }
 }

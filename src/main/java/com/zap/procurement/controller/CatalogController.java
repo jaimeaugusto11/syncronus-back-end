@@ -2,6 +2,9 @@ package com.zap.procurement.controller;
 
 import com.zap.procurement.domain.CatalogItem;
 import com.zap.procurement.repository.CatalogItemRepository;
+import com.zap.procurement.dto.CheckoutCartDTO;
+import com.zap.procurement.domain.Requisition;
+import com.zap.procurement.service.RequisitionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,8 +31,11 @@ public class CatalogController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @PostMapping
-    public ResponseEntity<CatalogItem> createItem(@RequestBody CatalogItem item) {
-        return ResponseEntity.ok(catalogItemRepository.save(item));
+    @Autowired
+    private RequisitionService requisitionService;
+
+    @PostMapping("/checkout")
+    public ResponseEntity<Requisition> checkout(@RequestBody CheckoutCartDTO checkoutDTO) {
+        return ResponseEntity.ok(requisitionService.createFromCatalog(checkoutDTO));
     }
 }

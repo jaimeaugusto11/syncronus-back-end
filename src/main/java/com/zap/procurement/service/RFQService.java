@@ -72,7 +72,8 @@ public class RFQService {
         public RFQ createRFQForCategory(UUID categoryId, List<UUID> requisitionItemIds, RFQ.RFQType type,
                         RFQ.ProcessType processType, String title, String description,
                         java.time.LocalDate closingDate, Integer technicalWeight, Integer financialWeight,
-                        List<UUID> supplierIds, java.math.BigDecimal startingPrice, java.math.BigDecimal minIncrement) {
+                        List<UUID> supplierIds, java.math.BigDecimal startingPrice, java.math.BigDecimal minIncrement,
+                        Boolean sealedBidding, List<Map<String, Object>> itemsDetails) {
                 UUID tenantId = TenantContext.getCurrentTenant();
 
                 List<RequisitionItem> items = requisitionItemRepository.findAllById(requisitionItemIds);
@@ -143,6 +144,23 @@ public class RFQService {
                         rfqItem.setUnit(reqItem.getUnit());
                         rfqItem.setEstimatedPrice(reqItem.getEstimatedPrice());
                         rfqItem.setTenantId(tenantId);
+
+                        // Aplicar Lotes se fornecidos
+                        if (itemsDetails != null) {
+                                Optional<Map<String, Object>> detail = itemsDetails.stream()
+                                                .filter(d -> d.get("id").toString().equals(reqItem.getId().toString()))
+                                                .findFirst();
+                                if (detail.isPresent()) {
+                                        Map<String, Object> d = detail.get();
+                                        if (d.get("lotNumber") != null) {
+                                                rfqItem.setLotNumber(Integer.parseInt(d.get("lotNumber").toString()));
+                                        }
+                                        if (d.get("lotName") != null) {
+                                                rfqItem.setLotName(d.get("lotName").toString());
+                                        }
+                                }
+                        }
+
                         rfqItemRepository.save(rfqItem);
 
                         reqItem.setStatus(RequisitionItem.RequisitionItemStatus.IN_SOURCING);
@@ -671,14 +689,22 @@ public class RFQService {
                                 .filter(p -> p.getStatus() != SupplierProposal.ProposalStatus.DRAFT)
                                 .collect(Collectors.toList());
 
+                boolean isSealed = Boolean.TRUE.equals(rfq.getSealedBidding());
+                boolean isHidden = isSealed &&
+                                rfq.getStatus() != RFQ.RFQStatus.READY_COMPARE &&
+                                rfq.getStatus() != RFQ.RFQStatus.TECHNICAL_VALIDATION &&
+                                rfq.getStatus() != RFQ.RFQStatus.AWARDED &&
+                                rfq.getStatus() != RFQ.RFQStatus.PARTIALLY_AWARDED &&
+                                rfq.getStatus() != RFQ.RFQStatus.CLOSED;
+
                 List<ProposalComparisonDTO.SupplierSummaryDTO> summaries = new ArrayList<>();
 
-                // Find globally best values
-                BigDecimal minTotal = proposals.stream()
+                // Find globally best values (only if not hidden)
+                BigDecimal minTotal = !isHidden ? proposals.stream()
                                 .map(SupplierProposal::getTotalAmount)
                                 .filter(Objects::nonNull)
                                 .min(BigDecimal::compareTo)
-                                .orElse(null);
+                                .orElse(null) : null;
 
                 Long minDays = proposals.stream()
                                 .map(p -> p.getDeliveryDate() != null
@@ -704,19 +730,19 @@ public class RFQService {
                                         .supplierId(p.getSupplier().getId())
                                         .supplierName(p.getSupplier().getName())
                                         .supplierCode(p.getSupplier().getCode())
-                                        .totalAmount(p.getTotalAmount())
+                                        .totalAmount(isHidden ? BigDecimal.ZERO : p.getTotalAmount())
                                         .currency(p.getCurrency())
                                         .deliveryDays((int) days)
-                                        .paymentTerms(p.getPaymentTerms())
+                                        .paymentTerms(isHidden ? "***" : p.getPaymentTerms())
                                         .technicalScore(p.getTechnicalScore())
-                                        .financialScore(p.getFinancialScore())
-                                        .finalScore(p.getFinalScore())
+                                        .financialScore(isHidden ? BigDecimal.ZERO : p.getFinancialScore())
+                                        .finalScore(isHidden ? BigDecimal.ZERO : p.getFinalScore())
                                         .status(p.getStatus().toString())
-                                        .isCheapest(minTotal != null && p.getTotalAmount() != null
+                                        .isCheapest(!isHidden && minTotal != null && p.getTotalAmount() != null
                                                         && p.getTotalAmount().compareTo(minTotal) == 0)
                                         .isFastest(minDays != null && days == minDays)
                                         .isBestScored(
-                                                        maxScore != null && p.getFinalScore() != null
+                                                        !isHidden && maxScore != null && p.getFinalScore() != null
                                                                         && p.getFinalScore().compareTo(maxScore) == 0)
                                         .build());
                 }
@@ -759,9 +785,11 @@ public class RFQService {
                                                                         .supplierId(p.getSupplier().getId())
                                                                         .proposalItemId(pi.getId())
                                                                         .supplierName(p.getSupplier().getName())
-                                                                        .unitPrice(pi.getUnitPrice())
-                                                                        .totalPrice(pi.getTotalPrice())
-                                                                        .isLowest(lowestItemPrice != null
+                                                                        .unitPrice(isHidden ? BigDecimal.ZERO
+                                                                                        : pi.getUnitPrice())
+                                                                        .totalPrice(isHidden ? BigDecimal.ZERO
+                                                                                        : pi.getTotalPrice())
+                                                                        .isLowest(!isHidden && lowestItemPrice != null
                                                                                         && pi.getUnitPrice().compareTo(
                                                                                                         lowestItemPrice) == 0)
                                                                         .poId(poId)
@@ -778,6 +806,8 @@ public class RFQService {
                                         .quantity(rfqItem.getQuantity())
                                         .unit(rfqItem.getUnit())
                                         .targetPrice(rfqItem.getEstimatedPrice())
+                                        .lotNumber(rfqItem.getLotNumber())
+                                        .lotName(rfqItem.getLotName())
                                         .prices(supplierPrices)
                                         .build());
                 }
@@ -808,9 +838,12 @@ public class RFQService {
                                 .rfqTitle(rfq.getTitle() != null ? rfq.getTitle()
                                                 : "Processo de Aquisição " + rfq.getCode())
                                 .rfqStatus(rfq.getStatus().toString())
+                                .isSealed(isHidden)
                                 .summaries(summaries)
                                 .items(itemComparisons)
-                                .AIAnalysis(analysis.toString())
+                                .AIAnalysis(isHidden
+                                                ? "Propostas sob Sealed Bidding. Avance para Comparativo para abrir os envelopes."
+                                                : analysis.toString())
                                 .build();
         }
 }

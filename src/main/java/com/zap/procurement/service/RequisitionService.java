@@ -9,8 +9,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import com.zap.procurement.dto.CheckoutCartDTO;
 
 @Service
 public class RequisitionService {
@@ -20,6 +22,9 @@ public class RequisitionService {
 
     @Autowired
     private PORequisitionRepository poRequisitionRepository;
+
+    @Autowired
+    private CatalogItemRepository catalogItemRepository;
 
     @Transactional(readOnly = true)
     public List<com.zap.procurement.dto.PurchaseOrderSummaryDTO> getPurchaseOrdersForRequisition(UUID requisitionId) {
@@ -435,6 +440,65 @@ public class RequisitionService {
                 .findApprovedItemsByCategory(categoryId, RequisitionItem.RequisitionItemStatus.APPROVED).stream()
                 .filter(item -> item.getTenantId().equals(tenantId))
                 .toList();
+    }
+
+    @Transactional
+    public Requisition createFromCatalog(CheckoutCartDTO dto) {
+        UUID tenantId = TenantContext.getCurrentTenant();
+        UUID userId = TenantContext.getCurrentUser();
+
+        User requester = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+        Department dept = departmentRepository.findById(dto.getDepartmentId())
+                .orElseThrow(() -> new RuntimeException("Departamento não encontrado"));
+
+        Requisition requisition = new Requisition();
+        requisition.setTenantId(tenantId);
+        requisition.setCode(generateRequisitionCode(tenantId));
+        requisition.setTitle(dto.getTitle());
+        requisition.setJustification(dto.getJustification());
+        requisition.setPriority(Requisition.Priority.valueOf(dto.getPriority()));
+        requisition.setRequester(requester);
+        requisition.setDepartment(dept);
+        requisition.setStatus(Requisition.RequisitionStatus.DRAFT);
+
+        if (dto.getBudgetLineId() != null) {
+            BudgetLine bl = budgetLineRepository.findById(dto.getBudgetLineId()).orElse(null);
+            requisition.setBudgetLine(bl);
+            if (bl == null)
+                requisition.setExtraordinary(true);
+        } else {
+            requisition.setExtraordinary(true);
+        }
+
+        BigDecimal total = BigDecimal.ZERO;
+        List<RequisitionItem> reqItems = new ArrayList<>();
+
+        for (CheckoutCartDTO.CartItemDTO cartItem : dto.getItems()) {
+            CatalogItem catalogItem = catalogItemRepository.findById(cartItem.getCatalogItemId())
+                    .orElseThrow(() -> new RuntimeException(
+                            "Item do catálogo não encontrado: " + cartItem.getCatalogItemId()));
+
+            RequisitionItem item = new RequisitionItem();
+            item.setRequisition(requisition);
+            item.setDescription(catalogItem.getName());
+            item.setQuantity(BigDecimal.valueOf(cartItem.getQuantity()));
+            item.setEstimatedPrice(catalogItem.getPrice());
+            item.setTotalPrice(catalogItem.getPrice().multiply(BigDecimal.valueOf(cartItem.getQuantity())));
+            item.setCategory(catalogItem.getCategory());
+            item.setPreferredSupplier(catalogItem.getSupplier());
+            item.setTenantId(tenantId);
+            item.setStatus(RequisitionItem.RequisitionItemStatus.DRAFT);
+            item.setUnit("UN"); // Default unit for catalog items
+
+            reqItems.add(item);
+            total = total.add(item.getTotalPrice());
+        }
+
+        requisition.setItems(reqItems);
+        requisition.setTotalAmount(total);
+
+        return requisitionRepository.save(requisition);
     }
 
     public List<RequisitionApproval> getApprovalsByRequisition(UUID requisitionId) {

@@ -49,6 +49,12 @@ public class RFQItem extends BaseEntity {
     @Column(name = "status")
     private RFQItemStatus status = RFQItemStatus.PENDING;
 
+    @Column(name = "lot_number")
+    private Integer lotNumber;
+
+    @Column(name = "lot_name")
+    private String lotName;
+
     public enum RFQItemStatus {
         PENDING,
         AWARDED,
@@ -126,5 +132,21 @@ public class RFQItem extends BaseEntity {
 
     public void setStatus(RFQItemStatus status) {
         this.status = status;
+    }
+
+    public Integer getLotNumber() {
+        return lotNumber;
+    }
+
+    public void setLotNumber(Integer lotNumber) {
+        this.lotNumber = lotNumber;
+    }
+
+    public String getLotName() {
+        return lotName;
+    }
+
+    public void setLotName(String lotName) {
+        this.lotName = lotName;
     }
 }
