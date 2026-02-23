@@ -34,7 +34,7 @@ public class SecurityConfig {
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                                 .authorizeHttpRequests(auth -> auth
-                                                .requestMatchers("/auth/**").permitAll()
+                                                .requestMatchers("/auth/**").permitAll() 
                                                 .requestMatchers("/setup/**").permitAll()
                                                 .requestMatchers("/users/init-system").permitAll()
                                                 .requestMatchers("/users/init-system/**").permitAll()
